@@ -1,6 +1,6 @@
 # INVEST OS
 
-投資推播自動化系統，由 Google Apps Script + LINE Notify + Anthropic API 組成。
+投資推播自動化系統，由 Google Apps Script + LINE Messaging API + Anthropic API 組成。
 
 ## 檔案
 

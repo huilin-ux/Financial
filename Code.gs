@@ -157,18 +157,24 @@ function getPrice(tk) {
 }
 
 /**
- * 透過 LINE Notify 推送訊息
+ * 透過 LINE Messaging API（Push Message）推送訊息
+ *   token  = Channel access token（Messaging API channel）
+ *   userId = 收訊者的 LINE userId（U 開頭那串）
  */
-function sendLine(token, msg) {
-  if (!token) {
-    Logger.log('sendLine 未設定 token，跳過');
+function sendLine(token, msg, userId) {
+  if (!token || !userId) {
+    Logger.log('sendLine 未設定 token 或 userId，跳過');
     return false;
   }
   try {
-    const res = UrlFetchApp.fetch('https://notify-api.line.me/api/notify', {
+    const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'post',
+      contentType: 'application/json',
       headers: { Authorization: 'Bearer ' + token },
-      payload: { message: msg },
+      payload: JSON.stringify({
+        to: userId,
+        messages: [{ type: 'text', text: msg }]
+      }),
       muteHttpExceptions: true
     });
     if (res.getResponseCode() !== 200) {
@@ -336,7 +342,7 @@ ${watchAlerts.length ? watchAlerts.join('\n') : '目前沒有接近價位的標�
 - 結尾給一句正能量祝福`;
 
     const msg = askClaude(cfg.claude_key, prompt) || '今日早報生成失敗，請稍後查看。';
-    sendLine(cfg.line_token, '\n☀️ INVEST OS 今日早報\n' + msg);
+    sendLine(cfg.line_token, '☀️ INVEST OS 今日早報\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
@@ -367,7 +373,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的買入提醒，語氣要冷靜理性、像個穩健的投資夥伴在提點，
 提醒他確認資金、按原計畫分批進場，不要因為短線波動衝動加碼，適度使用 emoji。`;
           const msg = askClaude(cfg.claude_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到買入價，請確認後執行。`;
-          sendLine(cfg.line_token, '\n🎯 向錢進・買入到價\n' + msg);
+          sendLine(cfg.line_token, '🎯 向錢進・買入到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'buy');
         }
       }
@@ -380,7 +386,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的恭喜訊息，語氣超級開心、誇張一點，
 強調他眼光真的很棒，提醒他按原計畫獲利了結，不要貪心，多用 🎉🥳💰 等 emoji。`;
           const msg = askClaude(cfg.claude_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到停利價，恭喜！`;
-          sendLine(cfg.line_token, '\n🎉 向錢進・停利到價\n' + msg);
+          sendLine(cfg.line_token, '🎉 向錢進・停利到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'tp');
         }
       }
@@ -393,7 +399,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的提醒，語氣沉穩、堅定、支持，
 強調停損是保護本金、不是失敗，提醒他按計畫紀律執行、保留資金等下個機會，少量溫和的 emoji。`;
           const msg = askClaude(cfg.claude_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到停損價，請依紀律執行。`;
-          sendLine(cfg.line_token, '\n🛡️ 向錢進・停損到價\n' + msg);
+          sendLine(cfg.line_token, '🛡️ 向錢進・停損到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'sl');
         }
       }
@@ -431,7 +437,7 @@ ${lines.join('\n')}
 - 適度使用 emoji`;
 
     const msg = askClaude(cfg.claude_key, prompt) || '今天是定期定額扣款日，記得確認帳戶餘額喔！';
-    sendLine(cfg.line_token, '\n💰 INVEST OS 定期定額提醒\n' + msg);
+    sendLine(cfg.line_token, '💰 INVEST OS 定期定額提醒\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('checkDCAReminder 失敗：' + err.message);
   }
@@ -484,7 +490,7 @@ ${lines.join('\n') || '（無持倉）'}
 - 適當 emoji，溫暖可愛`;
 
     const msg = askClaude(cfg.claude_key, prompt) || '本週辛苦了，週末愉快！';
-    sendLine(cfg.line_token, '\n📊 INVEST OS 週五週報\n' + msg);
+    sendLine(cfg.line_token, '📊 INVEST OS 週五週報\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendWeeklyReport 失敗：' + err.message);
   }
@@ -547,7 +553,7 @@ function testAll() {
     Logger.log('[3/4] Finmind 測試失敗，無法取得 006208 報價');
   }
 
-  // 4. 發 LINE 測試訊息
-  const ok = sendLine(cfg.line_token, '\nINVEST OS 連線測試成功 ✅');
+  // 4. 發 LINE 測試訊息（Messaging API push）
+  const ok = sendLine(cfg.line_token, 'INVEST OS 連線測試成功 ✅', cfg.line_user_id);
   Logger.log('[4/4] LINE 發送 ' + (ok ? '成功' : '失敗'));
 }

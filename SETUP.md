@@ -1,8 +1,8 @@
 # INVEST OS 設定說明
 
-本系統由 Google Apps Script + LINE Notify + Anthropic API 組成，所有資料來源都在同一個 Google Sheets。
+本系統由 Google Apps Script + LINE Messaging API + Anthropic API 組成，所有資料來源都在同一個 Google Sheets。
 
-> ⚠️ LINE Notify 已於 2025/03 由官方停止服務。若提示無法送出，請改用 LINE Messaging API 或其他推播管道，並把 `sendLine` 換成對應的呼叫即可。
+> 推播使用 LINE Messaging API 的 Push Message（LINE Notify 已於 2025/03 停服，故不採用）。需要一個 Messaging API channel 的 access token，以及收訊者的 LINE userId。
 
 ## 一、Google Sheets 結構
 
@@ -57,20 +57,27 @@
 
 ### 工作表 ④：設定
 
-| key          | value                  |
-|--------------|------------------------|
-| total_assets | 600000                 |
-| line_token   | 你的 LINE Notify Token |
-| claude_key   | 你的 Anthropic API Key |
-| owner_name   | Kate                   |
+| key           | value                                  |
+|---------------|----------------------------------------|
+| total_assets  | 600000                                 |
+| line_token    | LINE Messaging API 的 Channel access token |
+| line_user_id  | 收訊者的 LINE userId（U 開頭那串）      |
+| claude_key    | 你的 Anthropic API Key                 |
+| owner_name    | Kate                                   |
 
 第一列為標題列（key、value），第二列開始才是資料。
 
 ## 二、取得必要金鑰
 
-1. **LINE Notify Token**：前往 <https://notify-bot.line.me/my/>，發行一個個人權杖。
-2. **Anthropic API Key**：前往 <https://console.anthropic.com/> 建立 API Key。
-3. **Google Sheets ID**：開啟試算表後從網址複製 `/d/` 後面那一段。
+1. **LINE Messaging API Channel access token**：
+   - 到 <https://developers.line.biz/console/> 建立一個 Provider，再建立 `Messaging API` channel。
+   - 進入 channel 的 `Messaging API` 分頁，捲到「Channel access token (long-lived)」按 Issue 取得。
+   - 用手機 LINE 加入該 channel 的 Bot 為好友（掃 QR code），否則 push 會被拒絕。
+2. **取得自己的 LINE userId**：
+   - 在 channel 的 `Messaging API` 設定頁有 `Your user ID` 欄位（U 開頭，35 字元）。
+   - 或在 webhook 接收任一則訊息中讀取 `events[0].source.userId`。
+3. **Anthropic API Key**：前往 <https://console.anthropic.com/> 建立 API Key。
+4. **Google Sheets ID**：開啟試算表後從網址複製 `/d/` 後面那一段。
 
 ## 三、部署步驟（5 步）
 
@@ -102,5 +109,5 @@ notified_{stock_tk}_{type}_{yyyyMMdd}
 ## 六、常見問題
 
 - **股價抓不到**：Finmind 公開端點有流量限制，少量自用通常沒問題，必要時可申請免費 token 在 `getPrice` 中加上 `&token=` 參數。
-- **LINE 沒收到**：先確認 Token 沒過期；Notify 已停服的話請改接其他通知管道。
+- **LINE 沒收到**：依序檢查（1）Channel access token 是否正確、未過期；（2）你的帳號是否已加 Bot 為好友（Push 給沒加好友的 userId 會 403）；（3）`line_user_id` 是 `U` 開頭的 35 字元字串，不是 Display Name。Messaging API 免費方案每月 200 則訊息以內。
 - **Claude 訊息空白**：API Key 沒額度或 model 名稱錯誤；先在 `testAll` 中加一行 `Logger.log(askClaude(cfg.claude_key, '說個哈囉'))` 排查。
