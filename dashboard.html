@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="theme-color" content="#050608">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>INVEST OS</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' fill='%23050608'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' fill='%23ffb832' font-family='monospace' font-size='32' font-weight='bold'%3EINVEST%3C/text%3E%3Ctext x='50%25' y='80%25' dominant-baseline='middle' text-anchor='middle' fill='%23ffb832' font-family='monospace' font-size='32' font-weight='bold'%3EOS%3C/text%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;700&family=Syne:wght@700;800&family=Noto+Sans+TC:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --void:#050608;--base:#080c10;--surface:#0d1520;--panel:#0f1a28;--raised:#141f2a;--edge:#1a2535;
+  --amber:#ffb832;--amber-dim:#cc8f20;--amber-ghost:rgba(255,184,50,0.05);
+  --red:#ff4560;--green:#00c896;--blue:#3a7bd5;--purple:#9b59b6;--orange:#f39c12;
+  --text-primary:#f0e6d0;--text-secondary:rgba(240,230,210,0.75);--text-dim:rgba(240,230,210,0.45);
+  --mono:'IBM Plex Mono',monospace;--display:'Syne',sans-serif;--body:'Noto Sans TC',sans-serif;
+  --r:8px;
+  --accent:#00c896;--border:var(--edge);--bg:var(--void);
+}
+html{background:#050608!important;min-height:100%}
+body{font-family:var(--body);background:#050608!important;color:var(--text-primary);min-height:100vh;overflow-x:hidden;-webkit-text-size-adjust:100%;font-size:18px}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.022) 2px,rgba(0,0,0,0.022) 4px);pointer-events:none;z-index:9999}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#050608}::-webkit-scrollbar-thumb{background:var(--amber-dim);border-radius:2px}
+.hdr{position:sticky;top:0;z-index:200;background:#080c10;border-bottom:1px solid var(--edge);display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px}
+.hdr::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--amber-dim),transparent)}
+.logo{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:3px;color:var(--amber);display:flex;align-items:center;gap:10px}
+.live-pill{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:2px;background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.2);font-size:12px;letter-spacing:2px;color:var(--red)}
+.live-dot{width:5px;height:5px;background:var(--red);border-radius:50%;animation:blink 1s step-start infinite}
+@keyframes blink{50%{opacity:0}}
+.hclock{font-family:var(--mono);font-size:15px;color:var(--text-secondary)}
+.hclock em{color:var(--amber);font-style:normal}
+.nav{background:#080c10;border-bottom:1px solid var(--edge);display:flex;overflow-x:auto;padding:0 20px}
+.nav::-webkit-scrollbar{height:0}
+.ntab{display:flex;align-items:center;gap:6px;padding:0 16px;height:46px;font-family:var(--mono);font-size:13px;letter-spacing:1.2px;text-transform:uppercase;color:var(--text-dim);cursor:pointer;background:none;border:none;border-bottom:2px solid transparent;white-space:nowrap;transition:color 0.2s}
+.ntab:hover{color:var(--text-secondary)}
+.ntab.active{color:var(--amber);border-bottom-color:var(--amber);background:var(--amber-ghost)}
+.nnum{font-size:9px;opacity:0.5}
+.shell{max-width:960px;margin:0 auto;padding:16px 16px 80px}
+.section{display:none}.section.active{display:block}
+.panel{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);position:relative;overflow:hidden;margin-bottom:12px}
+.panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,184,50,0.2),transparent)}
+.phead{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid var(--edge)}
+.plabel{font-family:var(--mono);font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);display:flex;align-items:center;gap:8px}
+.plabel::before{content:'';width:3px;height:11px;background:var(--amber);border-radius:2px}
+.pbody{padding:14px 16px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:14px 16px;position:relative;overflow:hidden;transition:border-color 0.2s}
+.stat:hover{border-color:rgba(255,184,50,0.18)}
+.stat::after{content:attr(data-g);position:absolute;bottom:4px;right:8px;font-family:var(--mono);font-size:44px;font-weight:700;color:rgba(255,184,50,0.035);line-height:1;pointer-events:none}
+.slbl{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:rgba(240,230,210,0.55);text-transform:uppercase;margin-bottom:8px}
+.sval{font-family:var(--mono);font-size:24px;font-weight:700;line-height:1;margin-bottom:6px;letter-spacing:-0.5px}
+.sdelta{font-family:var(--mono);font-size:13px;display:flex;align-items:center;gap:4px;color:rgba(240,230,210,0.6)}
+.up{color:var(--green)}.dn{color:var(--red)}.am{color:var(--amber)}.bl{color:var(--blue)}.pu{color:var(--purple)}.or{color:var(--orange)}
+.price-status{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;color:var(--text-dim)}
+.price-dot{width:6px;height:6px;border-radius:50%;background:var(--text-dim);flex-shrink:0}
+.price-dot.fresh{background:var(--green);animation:blink 2s step-start infinite}
+.price-dot.stale{background:var(--orange)}
+.price-dot.err{background:var(--red)}
+.token-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(58,123,213,0.07);border:1px solid rgba(58,123,213,0.2);border-radius:var(--r);margin-bottom:12px}
+.token-bar input{flex:1;background:transparent;border:none;font-family:var(--mono);font-size:16px;color:var(--text-primary);outline:none}
+.token-bar input::placeholder{color:var(--text-dim)}
+.ht{width:100%;border-collapse:collapse}
+.ht thead tr{border-bottom:1px solid var(--edge)}
+.ht th{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);text-align:left;padding:9px 12px;font-weight:400}
+.ht th:not(:first-child){text-align:right}
+.ht td{padding:13px 12px;border-bottom:1px solid rgba(26,37,53,0.6);vertical-align:middle}
+.ht td:not(:first-child){text-align:right}
+.ht tbody tr{transition:background 0.15s}
+.ht tbody tr:hover{background:rgba(255,184,50,0.022)}
+.ht tbody tr:last-child td{border-bottom:none}
+.htk{font-family:var(--mono);font-size:19px;font-weight:700;color:var(--amber)}
+.hnm{font-size:16px;color:rgba(240,230,210,0.52);margin-top:3px}
+.hp{font-family:var(--mono);font-size:19px;font-weight:500}
+.chip{display:inline-flex;align-items:center;font-family:var(--mono);font-size:13px;padding:3px 8px;border-radius:2px;margin-right:3px}
+.cb{background:rgba(0,200,150,0.08);border:1px solid rgba(0,200,150,0.2);color:var(--green)}
+.cs{background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.2);color:var(--red)}
+.chip-hot{animation:chipglow 1.8s ease-in-out infinite}
+@keyframes chipglow{50%{box-shadow:0 0 6px 1px currentColor}}
+.risk-gauge{display:flex;flex-direction:column;gap:9px}
+.rg-row{display:flex;align-items:center;gap:10px}
+.rg-label{font-family:var(--mono);font-size:13px;color:var(--text-dim);width:105px;flex-shrink:0}
+.rg-bar{flex:1;height:5px;background:var(--raised);border-radius:3px;overflow:hidden}
+.rg-fill{height:100%;border-radius:3px;transition:width 0.8s ease}
+.rg-val{font-family:var(--mono);font-size:16px;font-weight:700;width:42px;text-align:right;flex-shrink:0}
+.warn-box{display:flex;align-items:flex-start;gap:10px;padding:11px 13px;border-radius:6px;margin-top:7px}
+.warn-red{background:rgba(255,69,96,0.07);border:1px solid rgba(255,69,96,0.25)}
+.warn-orange{background:rgba(243,156,18,0.07);border:1px solid rgba(243,156,18,0.25)}
+.warn-green{background:rgba(0,200,150,0.07);border:1px solid rgba(0,200,150,0.25)}
+.warn-icon{font-size:19px;line-height:1;flex-shrink:0;margin-top:1px}
+.warn-text{font-size:15px;color:var(--text-secondary);line-height:1.65}
+.warn-title{font-family:var(--mono);font-size:12px;letter-spacing:1px;margin-bottom:3px}
+.donut-wrap{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.donut-legend{display:flex;flex-direction:column;gap:8px;flex:1;min-width:140px}
+.dl-row{display:flex;align-items:center;gap:8px}
+.dl-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.dl-name{font-size:15px;color:var(--text-secondary);flex:1}
+.dl-pct{font-family:var(--mono);font-size:15px;font-weight:700}
+.mini-chart{height:64px;position:relative;margin-top:8px}
+.tlog-row{display:flex;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid rgba(26,37,53,0.6)}
+.tlog-row:last-child{border-bottom:none}
+.tlog-type{font-family:var(--mono);font-size:13px;font-weight:700;padding:3px 9px;border-radius:2px;letter-spacing:1px;flex-shrink:0}
+.tlog-buy{background:rgba(0,200,150,0.12);border:1px solid rgba(0,200,150,0.25);color:var(--green)}
+.tlog-sell{background:rgba(255,69,96,0.12);border:1px solid rgba(255,69,96,0.25);color:var(--red)}
+.tlog-tk{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--amber)}
+.tlog-meta{font-family:var(--mono);font-size:13px;color:var(--text-dim);margin-top:3px}
+.tlog-price{font-family:var(--mono);font-size:19px;font-weight:700;text-align:right}
+.tlog-pnl{font-family:var(--mono);font-size:16px;text-align:right;margin-top:3px}
+.wr-card{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:13px 15px;margin-bottom:8px}
+.wr-name{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--amber);margin-bottom:5px}
+.wr-bar-wrap{display:flex;align-items:center;gap:8px;margin:7px 0}
+.wr-bar{flex:1;height:6px;background:var(--raised);border-radius:3px;overflow:hidden;display:flex}
+.wr-win{background:var(--green);height:100%}
+.wr-loss{background:var(--red);height:100%}
+.wr-stat{font-family:var(--mono);font-size:13px;color:var(--text-dim);display:flex;gap:12px;flex-wrap:wrap}
+.alloc-row{margin-bottom:16px}
+.alloc-row:last-child{margin-bottom:0}
+.alloc-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.alloc-label{font-size:17px;font-weight:600;color:var(--text-primary)}
+.alloc-pct{font-family:var(--mono);font-size:20px;font-weight:700}
+.alloc-bar-track{height:10px;background:rgba(255,255,255,0.07);border-radius:6px;overflow:hidden;margin-bottom:5px}
+.alloc-bar-fill{height:100%;border-radius:6px;transition:width 0.8s ease}
+.alloc-desc{font-size:13px;color:var(--text-dim)}
+.alloc-total{margin-top:16px;padding:14px;background:rgba(255,255,255,0.03);border-radius:8px;border:1px solid var(--border)}
+.alloc-total-lbl{font-size:13px;color:var(--text-dim);margin-bottom:6px}
+.alloc-total-val{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--text-primary)}
+.alloc-tip{display:flex;align-items:flex-start;gap:8px;margin-top:10px;padding:10px 12px;background:rgba(58,123,213,0.08);border-radius:8px;font-size:14px;color:var(--text-secondary);line-height:1.6}
+.al-filter{font-family:var(--mono);font-size:13px;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text-dim);cursor:pointer;white-space:nowrap;transition:all 0.2s}
+.al-filter.active{background:rgba(255,184,50,0.15);border-color:var(--amber);color:var(--amber)}
+.al-badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:0.5px}
+.al-badge.watching{background:rgba(58,123,213,0.15);border:1px solid rgba(58,123,213,0.3);color:var(--blue)}
+.al-badge.holding{background:rgba(255,184,50,0.15);border:1px solid rgba(255,184,50,0.3);color:var(--amber)}
+.al-badge.sold_profit{background:rgba(0,200,150,0.15);border:1px solid rgba(0,200,150,0.3);color:var(--green)}
+.al-badge.sold_loss{background:rgba(255,69,96,0.15);border:1px solid rgba(255,69,96,0.3);color:var(--red)}
+.al-card{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:16px;margin-bottom:10px;position:relative;transition:border-color 0.2s}
+.al-card.watching{border-left:3px solid var(--blue)}
+.al-card.holding{border-left:3px solid var(--amber)}
+.al-card.sold_profit{border-left:3px solid var(--green);opacity:0.85}
+.al-card.sold_loss{border-left:3px solid var(--red);opacity:0.85}
+.al-card.price-near-buy{border-color:rgba(0,200,150,0.5);box-shadow:0 0 0 1px rgba(0,200,150,0.2)}
+.al-card.price-near-stop{border-color:rgba(255,69,96,0.5);box-shadow:0 0 0 1px rgba(255,69,96,0.2)}
+.al-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px}
+.al-stock{flex:1}
+.al-tk{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--text-primary)}
+.al-nm{font-size:15px;color:var(--text-secondary);margin-top:1px}
+.al-src{font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:5px}
+.al-price-big{font-family:var(--mono);font-size:26px;font-weight:700;text-align:right}
+.al-price-lbl{font-size:11px;color:var(--text-dim);text-align:right;margin-bottom:3px}
+.al-trio{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px}
+.al-trio-item{background:rgba(0,0,0,0.2);border-radius:8px;padding:10px 12px;text-align:center}
+.al-trio-lbl{font-size:11px;color:var(--text-dim);margin-bottom:4px}
+.al-trio-val{font-family:var(--mono);font-size:17px;font-weight:700}
+.al-note{display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:rgba(58,123,213,0.06);border-radius:8px;margin-bottom:12px;font-size:14px;color:var(--text-secondary);line-height:1.6}
+.al-actions{display:flex;gap:6px;flex-wrap:wrap}
+.al-action-btn{font-family:var(--mono);font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:rgba(255,255,255,0.05);color:var(--text-secondary);cursor:pointer;transition:all 0.2s}
+.al-action-btn:hover{border-color:var(--amber);color:var(--amber)}
+.al-action-btn.danger{color:var(--red);border-color:rgba(255,69,96,0.3)}
+.al-action-btn.danger:hover{background:rgba(255,69,96,0.1)}
+.al-track{margin-bottom:12px}
+.al-track-lbl{display:flex;justify-content:space-between;font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-bottom:6px}
+.al-track-bar{height:6px;background:rgba(255,255,255,0.08);border-radius:4px;position:relative}
+.al-track-fill{height:100%;border-radius:4px;position:absolute;left:0;top:0}
+.al-track-dot{position:absolute;top:-5px;width:16px;height:16px;border-radius:50%;transform:translateX(-50%);border:2px solid var(--bg)}
+.al-stop-line{position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:1px;transform:translateX(-50%)}
+.al-sum-pill{font-family:var(--mono);font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:rgba(255,255,255,0.04);color:var(--text-secondary)}
+.addtrig{display:flex;align-items:center;gap:8px;padding:11px 15px;background:transparent;border:1px dashed var(--edge);border-radius:var(--r);color:var(--text-dim);font-family:var(--mono);font-size:16px;letter-spacing:1.2px;cursor:pointer;width:100%;transition:all 0.2s;margin-bottom:12px}
+.addtrig:hover{border-color:var(--amber-dim);color:var(--amber-dim)}
+.addpanel{background:var(--surface);border:1px solid rgba(255,184,50,0.2);border-radius:var(--r);padding:18px;margin-bottom:12px;display:none}
+.addpanel.open{display:block;animation:sld 0.2s ease}
+@keyframes sld{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+.fg{display:flex;flex-direction:column;gap:6px}
+.flbl{font-family:var(--mono);font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim)}
+.finput{background:var(--panel);border:1px solid var(--edge);border-radius:4px;padding:10px 13px;color:var(--text-primary);font-family:var(--mono);font-size:16px;outline:none;transition:border-color 0.2s;-webkit-appearance:none;width:100%}
+.finput::placeholder{color:var(--text-dim)}
+.finput:focus{border-color:var(--amber-dim)}
+.fsel{background:var(--panel);border:1px solid var(--edge);border-radius:4px;padding:10px 13px;color:var(--text-primary);font-family:var(--mono);font-size:16px;outline:none;cursor:pointer;width:100%}
+.btn{padding:10px 20px;border-radius:4px;font-family:var(--mono);font-size:16px;letter-spacing:1.2px;text-transform:uppercase;cursor:pointer;border:none;transition:all 0.2s}
+.btn-p{background:var(--amber);color:#050608;font-weight:700}
+.btn-p:hover{background:#ffc84a;box-shadow:0 0 14px rgba(255,184,50,0.3)}
+.btn-g{background:transparent;border:1px solid var(--edge);color:var(--text-secondary)}
+.btn-g:hover{border-color:var(--text-dim)}
+.src-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:9px}
+.src-chip{font-family:var(--mono);font-size:16px;padding:6px 13px;border-radius:3px;background:var(--raised);border:1px solid var(--edge);color:var(--text-secondary);cursor:pointer;transition:all 0.15s;white-space:nowrap}
+.src-chip:hover{border-color:var(--amber-dim);color:var(--amber)}
+.src-chip.selected{background:rgba(255,184,50,0.12);border-color:var(--amber);color:var(--amber);font-weight:700}
+.rhero{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:18px;margin-bottom:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:14px}
+.rsentiment{font-family:var(--display);font-size:28px;font-weight:800;line-height:1}
+.rsummary{font-size:19px;color:var(--text-secondary);line-height:1.6;margin-top:6px;max-width:480px}
+.rdate{font-family:var(--mono);font-size:13px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px}
+.rfbtn{background:var(--raised);border:1px solid var(--edge);color:var(--amber);border-radius:4px;padding:11px 18px;font-family:var(--mono);font-size:16px;letter-spacing:1.5px;cursor:pointer;white-space:nowrap;transition:all 0.2s;flex-shrink:0}
+.rfbtn:hover{border-color:var(--amber-dim);box-shadow:0 0 12px rgba(255,184,50,0.15)}
+.rfbtn:disabled{opacity:0.4;cursor:not-allowed}
+.mktgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.mcell{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:12px 14px}
+.mcell-name{font-family:var(--mono);font-size:13px;letter-spacing:0.5px;color:var(--text-dim);margin-bottom:5px}
+.mcell-val{font-family:var(--mono);font-size:18px;font-weight:700;margin-bottom:4px}
+.mcell-note{font-size:13px;color:var(--text-secondary);line-height:1.4}
+.ecard{background:var(--surface);border:1px solid var(--edge);border-left:2px solid var(--amber-dim);border-radius:var(--r);padding:14px 16px;margin-bottom:8px}
+.etag{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--amber);letter-spacing:1px;margin-bottom:6px}
+.ebody{font-size:16px;color:var(--text-secondary);line-height:1.75}
+.ibox{background:rgba(58,123,213,0.05);border:1px solid rgba(58,123,213,0.15);border-left:2px solid var(--blue);border-radius:var(--r);padding:14px 16px}
+.ilbl{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:rgba(58,123,213,0.7);margin-bottom:6px}
+.ibody{font-size:16px;color:var(--text-secondary);line-height:1.75}
+.wword{display:inline-block;font-family:var(--mono);font-size:13px;padding:4px 10px;border-radius:2px;background:rgba(0,229,204,0.07);border:1px solid rgba(0,229,204,0.15);color:rgba(0,229,204,0.65);margin:3px 3px 3px 0}
+.loadbar{height:2px;background:linear-gradient(90deg,transparent,var(--amber),transparent);background-size:200% 100%;animation:lb 1.2s ease infinite;border-radius:2px;margin-bottom:12px}
+@keyframes lb{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.skel{background:linear-gradient(90deg,var(--edge) 25%,rgba(26,37,53,0.8) 50%,var(--edge) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:3px;margin-bottom:9px;height:14px}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.hcard{padding:16px;border-bottom:1px solid rgba(26,37,53,0.7);position:relative;overflow:hidden}
+.hcard:last-child{border-bottom:none}
+.hcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;position:relative;z-index:2}
+.hcard-tk{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:1px}
+.hcard-nm{font-size:14px;color:var(--text-dim);margin-top:2px}
+.hcard-chips{display:flex;gap:6px;margin-top:8px}
+.hcard-right{text-align:right;flex-shrink:0}
+.hcard-price{font-family:var(--mono);font-size:26px;font-weight:700;color:var(--text-primary);letter-spacing:-0.5px;line-height:1}
+.hcard-cost{font-size:13px;color:var(--text-dim);margin-top:3px}
+.hcard-pnl{font-family:var(--mono);font-size:16px;font-weight:700;margin-top:5px}
+.hcard-pct{font-size:13px;font-weight:600;margin-top:2px}
+.hcard-chart{margin:10px -16px 0;height:72px;position:relative}
+.hcard-chart svg{display:block;width:100%;height:100%}
+.hcard-meta{display:flex;align-items:center;justify-content:space-between;margin-top:8px;position:relative;z-index:2}
+.hcard-shares{font-family:var(--mono);font-size:13px;color:var(--text-dim)}
+.hcard-val{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--amber)}
+.hcard-bar-wrap{margin-top:8px;position:relative;z-index:2}
+.hcard-bar-lbl{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:5px}
+.hcard-bar-track{height:4px;background:rgba(255,255,255,0.07);border-radius:3px;position:relative}
+.hcard-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;transition:width 0.6s ease}
+.hcard-bar-dot{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);border:2px solid #050608;transition:left 0.6s ease}
+.hint-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text-dim);font-size:11px;font-weight:700;cursor:pointer;margin-left:6px;flex-shrink:0;transition:all 0.15s;line-height:1;vertical-align:middle}
+.hint-btn:hover{background:rgba(255,184,50,0.15);border-color:var(--amber);color:var(--amber)}
+.hint-overlay{position:fixed;inset:0;z-index:400;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,15,0.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
+.hint-sheet{background:#111827;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:24px 20px 36px;border-top:1px solid rgba(255,255,255,0.08);animation:sheetup 0.22s cubic-bezier(0.32,0.72,0,1)}
+@keyframes sheetup{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
+.hint-handle{width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px}
+.hint-icon{font-size:28px;margin-bottom:10px}
+.hint-title{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:12px;letter-spacing:0.5px}
+.hint-body{font-size:15px;color:var(--text-secondary);line-height:1.8}
+.hint-body strong{color:var(--text-primary)}
+.hint-body .hint-tag{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:4px;margin:2px 2px;vertical-align:middle}
+.hint-tag-g{background:rgba(0,200,150,0.15);color:var(--green)}
+.hint-tag-r{background:rgba(255,69,96,0.15);color:var(--red)}
+.hint-tag-a{background:rgba(255,184,50,0.15);color:var(--amber)}
+.hint-tag-b{background:rgba(58,123,213,0.15);color:#6ea3f7}
+.hint-close{margin-top:20px;width:100%;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);font-family:var(--mono);font-size:14px;cursor:pointer}
+.hint-close:hover{background:rgba(255,255,255,0.10)}
+.ob-step-title{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--amber);margin-bottom:6px}
+.ob-step-desc{font-size:14px;color:var(--text-secondary);line-height:1.65}
+.ob-holding-row{display:grid;grid-template-columns:80px 1fr 80px 80px 80px auto;gap:6px;align-items:center;padding:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px}
+.dca-accordion-btn{width:100%;display:flex;align-items:center;justify-content:space-between;padding:10px 0;background:none;border:none;border-top:1px solid var(--border);color:var(--text-secondary);font-family:var(--mono);font-size:13px;cursor:pointer;margin-top:12px}
+.dca-accordion-btn:hover{color:var(--text-primary)}
+.dca-accordion-content{overflow:hidden;transition:max-height 0.3s ease}
+.cfg-h-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04)}
+.cfg-h-row:last-child{border-bottom:none}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid rgba(26,37,53,0.8)}
+.srow:last-child{border-bottom:none}
+.sname{font-size:19px}.sdesc2{font-size:16px;color:var(--text-dim);margin-top:4px;font-family:var(--mono);letter-spacing:0.5px}
+.tog{width:42px;height:24px;background:var(--raised);border:1px solid var(--edge);border-radius:20px;position:relative;cursor:pointer;flex-shrink:0;transition:background 0.25s,border-color 0.25s}
+.tog.on{background:rgba(255,184,50,0.18);border-color:var(--amber-dim)}
+.togthumb{position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--text-dim);transition:all 0.25s}
+.tog.on .togthumb{left:21px;background:var(--amber);box-shadow:0 0 8px rgba(255,184,50,0.5)}
+.kcard{background:var(--surface);border:1px solid var(--edge);border-radius:var(--r);padding:14px 16px;margin-bottom:8px}
+.ktitle{font-family:var(--mono);font-size:16px;letter-spacing:1px;margin-bottom:6px}
+.kbody{font-size:16px;color:var(--text-secondary);line-height:1.75}
+.arow{display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--edge);border-radius:var(--r);margin-bottom:8px;background:var(--surface)}
+.arow.tbuy{border-color:rgba(0,200,150,0.3);background:rgba(0,200,150,0.03)}
+.arow.tsell{border-color:rgba(255,69,96,0.3);background:rgba(255,69,96,0.03)}
+.arow:last-child{margin-bottom:0}
+.aicon{width:32px;height:32px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-overlay{position:fixed;inset:0;background:rgba(5,6,8,0.85);z-index:500;display:none;align-items:flex-end;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--panel);border:1px solid var(--edge);border-radius:12px 12px 0 0;width:100%;max-width:960px;padding:20px;max-height:80vh;overflow-y:auto;animation:mup 0.25s ease}
+@keyframes mup{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-title{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:var(--amber);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal-close{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:20px;line-height:1;padding:0}
+@media(max-width:600px){
+  .g4{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(2,1fr)}
+  .mktgrid{grid-template-columns:repeat(2,1fr)}
+  .rhero{flex-direction:column}
+  .donut-wrap{flex-direction:column}
+  .ht th:nth-child(4),.ht td:nth-child(4){display:none}
+}
+@keyframes fup{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.stat{animation:fup 0.35s ease both}
+.stat:nth-child(2){animation-delay:.05s}.stat:nth-child(3){animation-delay:.1s}.stat:nth-child(4){animation-delay:.15s}
+</style>
+</head>
+<body>
+<header class="hdr">
+  <div class="logo"><span>[ INVEST OS ]</span><div class="live-pill"><div class="live-dot"></div>LIVE</div></div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="hclock" id="hclock">—</div>
+    <div style="position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--edge);border-radius:4px;cursor:pointer">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(240,230,210,0.45)" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <div id="npip" style="position:absolute;top:4px;right:4px;width:7px;height:7px;background:var(--red);border-radius:50%;border:1px solid var(--base);display:none"></div>
+    </div>
+  </div>
+</header>
+<nav class="nav">
+  <button class="ntab active" onclick="go('portfolio',this)"><span class="nnum">01</span>持倉</button>
+  <button class="ntab" onclick="go('risk',this)"><span class="nnum">02</span>風險管理</button>
+  <button class="ntab" onclick="go('dca',this)"><span class="nnum">03</span>定期定額</button>
+  <button class="ntab" onclick="go('alerts',this)"><span class="nnum">04</span>向錢進</button>
+  <button class="ntab" onclick="go('log',this)"><span class="nnum">05</span>交易記錄</button>
+  <button class="ntab" onclick="go('report',this)"><span class="nnum">06</span>AI 日報</button>
+  <button class="ntab" onclick="go('settings',this)"><span class="nnum">07</span>設定</button>
+</nav>
+<main class="shell">
+<div id="tab-portfolio" class="section active">
+  <div class="token-bar">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(58,123,213,0.7)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    <input id="fmToken" placeholder="貼上 Finmind API Token 以啟用即時股價…" type="password" oninput="saveToken()">
+    <button onclick="fetchAllPrices()" class="btn btn-p" style="padding:6px 14px;font-size:13px">更新股價</button>
+    <button id="autoRefreshBtn" onclick="toggleAutoRefresh()" class="btn" style="padding:6px 14px;font-size:13px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--accent);font-family:var(--mono);cursor:pointer">自動更新</button>
+    <div class="price-status"><div class="price-dot" id="priceDot"></div><span id="priceStatusTxt">尚未連線</span></div>
+  </div>
+  <div class="g4" style="margin-bottom:12px">
+    <div class="stat" data-g="A" onclick="editTotalAssets()" style="cursor:pointer;position:relative" title="點擊修改"><div class="slbl">總資產 TWD <span style="font-size:10px;opacity:0.45;font-family:var(--mono)">✏</span></div><div class="sval am" id="totalAssets">—</div><div class="sdelta am" id="totalReturn">—</div></div>
+    <div class="stat" data-g="B"><div class="slbl">未實現損益</div><div class="sval" id="totalPnlStat">—</div><div class="sdelta" id="totalPnlDelta">—</div></div>
+    <div class="stat" data-g="C"><div class="slbl">今日提醒</div><div class="sval am" id="trigCount">—</div><div class="sdelta" style="color:var(--text-dim)">向錢進 / 目標價</div></div>
+    <div class="stat" data-g="D"><div class="slbl">上次更新</div><div class="sval am" id="lastUpdateStat" style="font-size:18px">—</div><div class="sdelta" style="color:var(--text-dim)">股價資料時間</div></div>
+  </div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:8px 12px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px">
+    <div style="display:flex;align-items:center;gap:6px">
+      <span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">AUTO</span>
+      <button onclick="setRefreshInterval(15,this)" style="font-family:var(--mono);font-size:12px;padding:3px 10px;background:rgba(0,200,150,0.15);border:1px solid var(--accent);color:var(--accent);border-radius:4px;cursor:pointer" class="ivl-btn ivl-active">15分</button>
+      <button onclick="setRefreshInterval(30,this)" style="font-family:var(--mono);font-size:12px;padding:3px 10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);border-radius:4px;cursor:pointer" class="ivl-btn">30分</button>
+      <button onclick="setRefreshInterval(60,this)" style="font-family:var(--mono);font-size:12px;padding:3px 10px;background:transparent;border:1px solid var(--border);color:var(--text-secondary);border-radius:4px;cursor:pointer" class="ivl-btn">60分</button>
+    </div>
+    <div style="text-align:right">
+      <div id="autoRefreshStatus" style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">已關閉</div>
+      <div id="refreshCountdown" style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:10px" id="allocPanel">
+    <div class="phead"><div class="plabel">資產配置狀態</div><button class="hint-btn" onclick="showHint('alloc')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-left:auto">核心-衛星策略</span></div>
+    <div id="allocChartWrap" style="padding:12px 16px 4px"></div>
+    <div class="pbody" id="allocBody"></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">持倉明細</div><button class="hint-btn" onclick="showHint('holdings')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">4 POSITIONS</span></div>
+    <div id="hbody" style="display:flex;flex-direction:column;gap:0"></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">今日觸發提醒</div><button class="hint-btn" onclick="showHint('alerts-today')" title="說明">?</button></div>
+    <div class="pbody" id="tbody"></div>
+  </div>
+</div>
+<div id="tab-risk" class="section">
+  <div class="g2" style="margin-bottom:12px">
+    <div class="stat" data-g="▲"><div class="slbl">最大單股集中度</div><div class="sval" id="maxConc">—</div><div class="sdelta" id="maxConcName" style="color:var(--text-dim)">—</div></div>
+    <div class="stat" data-g="▼"><div class="slbl">若最大倉位跌20%</div><div class="sval dn" id="dd20">—</div><div class="sdelta" style="color:var(--text-dim)">總資產影響</div></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">持倉集中度</div><button class="hint-btn" onclick="showHint('concentration')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">CONCENTRATION RISK</span></div>
+    <div class="pbody"><div class="donut-wrap"><svg width="130" height="130" viewBox="0 0 130 130" id="donutSvg"></svg><div class="donut-legend" id="donutLeg"></div></div><div id="concWarns" style="margin-top:12px"></div></div>
+  </div>
+  <div class="panel"><div class="phead"><div class="plabel">壓力測試</div><button class="hint-btn" onclick="showHint('stress')" title="說明">?</button></div><div class="pbody"><div class="risk-gauge" id="stressGauge"></div></div></div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">停損價參考</div><button class="hint-btn" onclick="showHint('stoploss')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:rgba(255,69,96,0.6)">STOP LOSS ≠ 向錢進賣出價</span></div>
+    <div class="pbody"><div style="font-size:16px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">停損是<strong style="color:var(--red)">保護本金</strong>用的，跟向錢進的「漲到多少賣」完全不同概念。建議每筆持倉設定<strong style="color:var(--text-primary)">最大可接受虧損</strong>（通常成本的 -8% 到 -15%）。</div>
+    <table class="ht"><thead><tr><th>股票</th><th>成本</th><th>停損 -10%</th><th>停損 -15%</th><th>現價距停損</th></tr></thead><tbody id="slBody"></tbody></table></div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">倉位大小建議</div><button class="hint-btn" onclick="showHint('sizing')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">POSITION SIZING</span></div>
+    <div class="pbody"><div style="font-size:16px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">專業建議：<strong style="color:var(--text-primary)">單筆交易最大虧損不超過總資產的 2%</strong>。根據停損點反推每次最多買幾股。</div><div id="sizeTable"></div></div>
+  </div>
+</div>
+<div id="tab-dca" class="section">
+  <div class="g4" style="margin-bottom:12px" id="dcaSummaryGrid"></div>
+  <div class="panel" style="margin-bottom:10px">
+    <div class="phead" style="cursor:pointer" onclick="toggleDcaForm()"><div class="plabel">+ 新增定期定額計畫</div><span id="dcaFormArrow" style="font-family:var(--mono);font-size:14px;color:var(--text-dim)">▼</span></div>
+    <div id="dcaForm" style="display:none" class="pbody">
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <button id="mode-plan" onclick="setDcaMode('plan',this)" class="btn btn-p" style="flex:1;padding:7px;font-size:13px">📅 設定計畫</button>
+        <button id="mode-single" onclick="setDcaMode('single',this)" class="btn" style="flex:1;padding:7px;font-size:13px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)">✏️ 單筆紀錄</button>
+      </div>
+      <div class="g2" style="gap:10px;margin-bottom:10px">
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票代號</div><input id="dca-tk" class="finput" placeholder="006208" oninput="autoName(this.value,'dca-nm')"></div>
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票名稱</div><input id="dca-nm" class="finput" placeholder="自動帶入"></div>
+      </div>
+      <div id="dca-plan-fields">
+        <div class="g2" style="gap:10px;margin-bottom:10px">
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">開始日期</div><input id="dca-start" class="finput" type="date"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">結束日期（可留空）</div><input id="dca-end" class="finput" type="date"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每月扣款日</div><input id="dca-day" class="finput" type="number" min="1" max="28" placeholder="15"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每次金額 $</div><input id="dca-plan-amt" class="finput" type="number" placeholder="10000"></div>
+        </div>
+        <div id="dca-preview" style="margin-bottom:10px"></div>
+        <button onclick="previewDcaPlan()" class="btn" style="width:100%;margin-bottom:8px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--accent);font-family:var(--mono)">預覽扣款時程</button>
+        <button onclick="addDcaPlan()" class="btn btn-p" style="width:100%">確認建立計畫</button>
+      </div>
+      <div id="dca-single-fields" style="display:none">
+        <div class="g2" style="gap:10px;margin-bottom:10px">
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款日期</div><input id="dca-date" class="finput" type="date"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款金額 $</div><input id="dca-amt" class="finput" type="number" placeholder="10000"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">成交價格</div><input id="dca-price" class="finput" type="number" placeholder="105.5"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">買入股數</div><input id="dca-shares" class="finput" type="number" placeholder="94"></div>
+        </div>
+        <button onclick="addDcaEntry()" class="btn btn-p" style="width:100%">確認新增</button>
+      </div>
+    </div>
+  </div>
+  <div id="dcaStockPanels"></div>
+  <div class="panel" id="dcaStrategyPanel"><div class="phead"><div class="plabel">定期定額策略說明</div><button class="hint-btn" onclick="showHint('dca')" title="說明">?</button></div><div class="pbody" id="dcaStrategyBody"></div></div>
+</div>
+<div id="tab-log" class="section">
+  <div class="g2" style="margin-bottom:12px">
+    <div class="stat" data-g="W"><div class="slbl">交易勝率</div><div class="sval up" id="totalWR">—</div><div class="sdelta" style="color:var(--text-dim)">已結算交易</div></div>
+    <div class="stat" data-g="$"><div class="slbl">已實現損益</div><div class="sval" id="totalRPnl">—</div><div class="sdelta" style="color:var(--text-dim)">歷史累計</div></div>
+  </div>
+  <div class="panel"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
+  <div class="panel"><div class="phead"><div class="plabel">交易記錄</div><button class="hint-btn" onclick="showHint('trades')" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
+</div>
+<div id="tab-alerts" class="section">
+  <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
+    <button class="al-filter active" onclick="filterAL('all',this)">全部</button>
+    <button class="al-filter" onclick="filterAL('watching',this)">👀 追蹤中</button>
+    <button class="al-filter" onclick="filterAL('holding',this)">💼 持有中</button>
+    <button class="al-filter" onclick="filterAL('sold_profit',this)">✅ 獲利出場</button>
+    <button class="al-filter" onclick="filterAL('sold_loss',this)">❌ 停損出場</button>
+  </div>
+  <div id="al-summary" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
+  <button class="addtrig" onclick="toggleForm()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>新增向錢進</button>
+  <div class="addpanel" id="addpanel">
+    <div style="font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--amber-dim);margin-bottom:13px">// NEW · 向錢進</div>
+    <div class="g2" style="gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="flbl">股票代號</label><input class="finput" id="fi-tk" placeholder="2330" oninput="autoName(this.value,'fi-nm')"></div>
+      <div class="fg"><label class="flbl">股票名稱</label><input class="finput" id="fi-nm" placeholder="台積電"></div>
+      <div class="fg"><label class="flbl">買進價</label><input class="finput" id="fi-b" type="number" placeholder="1000"></div>
+      <div class="fg"><label class="flbl">停利價 🎯</label><input class="finput" id="fi-tp" type="number" placeholder="1200"></div>
+      <div class="fg"><label class="flbl">停損價 🛑</label><input class="finput" id="fi-stop" type="number" placeholder="950"></div>
+      <div class="fg"><label class="flbl">初始狀態</label><select class="finput" id="fi-status"><option value="watching">👀 追蹤中（尚未買進）</option><option value="holding">💼 持有中（已買進）</option></select></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px">
+      <label class="flbl" style="margin-bottom:8px;display:block">消息來源</label>
+      <div class="src-chips" id="srcChips"></div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="finput" id="fi-src" placeholder="輸入來源後按 Enter 加入快選…" style="flex:1" oninput="clearSrcChips()" onkeydown="if(event.key==='Enter'){addSrcQuick('fi-src');event.preventDefault()}">
+        <button onclick="addSrcQuick('fi-src')" style="padding:0 14px;background:rgba(255,184,50,0.1);border:1px solid rgba(255,184,50,0.3);color:var(--amber);border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px;white-space:nowrap">+ 加入</button>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:12px"><label class="flbl">筆記（可選）</label><input class="finput" id="fi-note" placeholder="進場理由、觀察重點…"></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-p" onclick="addAlert()">確認新增</button><button class="btn btn-g" onclick="toggleForm()">取消</button></div>
+  </div>
+  <div id="alist"></div>
+  <div class="ibox" style="margin-top:12px"><div class="ilbl">向錢進使用原則</div><div class="ibody">設定好<strong style="color:var(--text-primary)">買進價＋停利＋停損</strong>，到了無腦執行，克服人性弱點。停損不是失敗，是保護本金的紀律。</div></div>
+</div>
+<div id="tab-report" class="section">
+  <div class="rhero">
+    <div><div class="rdate" id="rdate">—</div><div class="rsentiment" id="rsentiment" style="color:var(--text-dim)">—</div><div class="rsummary" id="rsummary">點擊右方按鈕，生成針對你持倉的個人化 AI 分析</div></div>
+    <button class="rfbtn" id="rfbtn" onclick="genReport()">▶ 生成報告</button>
+  </div>
+  <div id="rbody"></div>
+</div>
+<div id="tab-settings" class="section">
+  <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><div class="plabel">消息來源管理</div><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">快選清單</span></div>
+    <div class="pbody">
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px">新增過的來源會在所有表單顯示為快選。點 ✕ 刪除。</div>
+      <div class="src-chips" id="settingsSrcChips" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px"><input class="finput" id="settings-src-input" placeholder="新增來源，例：同事老李" style="flex:1" onkeydown="if(event.key==='Enter'){addSrcFromSettings();event.preventDefault()}"><button onclick="addSrcFromSettings()" class="btn btn-p" style="padding:8px 16px;white-space:nowrap">新增</button></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><div class="plabel">Finmind 設定</div><span style="font-family:var(--mono);font-size:12px;color:rgba(58,123,213,0.6)">即時股價</span></div>
+    <div class="pbody">
+      <div style="font-size:16px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">Finmind 提供台股延遲約10分鐘的報價，免費方案每天600次請求，足夠個人使用。<br><a href="https://finmindtrade.com/" target="_blank" style="color:var(--blue);font-family:var(--mono);font-size:16px">→ finmindtrade.com 免費註冊</a></div>
+      <div class="fg" style="margin-bottom:12px"><label class="flbl">Finmind API Token</label><input class="finput" id="cfg-token" type="password" placeholder="貼上你的 token…" oninput="saveToken()"></div>
+      <div style="font-family:var(--mono);font-size:13px;color:var(--text-dim)">Token 儲存在本地裝置，不會上傳到任何伺服器。</div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><div class="plabel">推播設定</div></div>
+    <div class="pbody">
+      <div class="srow"><div><div class="sname">每日早報 08:00</div><div class="sdesc2">AI · 自動生成個人化市場摘要</div></div><div class="tog on" onclick="this.classList.toggle('on')"><div class="togthumb"></div></div></div>
+      <div class="srow"><div><div class="sname">向錢進目標價觸達</div><div class="sdesc2">股價接近買入 / 賣出價時即時通知</div></div><div class="tog on" onclick="this.classList.toggle('on')"><div class="togthumb"></div></div></div>
+      <div class="srow"><div><div class="sname">停損警示</div><div class="sdesc2">持倉跌破建議停損價時緊急通知</div></div><div class="tog on" onclick="this.classList.toggle('on')"><div class="togthumb"></div></div></div>
+      <div class="srow"><div><div class="sname">重大事件即時推播</div><div class="sdesc2">Fed 利率決策 · 台灣大盤異常波動</div></div><div class="tog" onclick="this.classList.toggle('on')"><div class="togthumb"></div></div></div>
+      <div class="srow"><div><div class="sname">週報 每週五 18:00</div><div class="sdesc2">本週回顧 · 向錢進勝率更新</div></div><div class="tog" onclick="this.classList.toggle('on')"><div class="togthumb"></div></div></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><div class="plabel">我的資料</div><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">編輯 / 匯出</span></div>
+    <div class="pbody">
+      <div style="margin-bottom:16px"><div class="flbl" style="margin-bottom:6px">總資產（含現金）NT$</div><div style="display:flex;gap:8px"><input class="finput" id="cfg-total" type="number" placeholder="600000" style="flex:1"><button onclick="saveTotalAssets()" class="btn btn-p" style="padding:8px 16px;white-space:nowrap">更新</button></div></div>
+      <div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="flbl">持倉</div><button onclick="openAddHoldingModal()" style="font-family:var(--mono);font-size:12px;padding:4px 12px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--green);border-radius:4px;cursor:pointer">+ 新增</button></div><div id="cfg-holdings-list"></div></div>
+      <div style="height:1px;background:var(--border);margin:16px 0"></div>
+      <div style="margin-bottom:8px"><div class="flbl" style="color:var(--red);margin-bottom:10px">危險操作</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="clearAllData()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,69,96,0.1);border:1px solid rgba(255,69,96,0.3);color:var(--red);border-radius:6px;cursor:pointer">🗑 清除所有資料</button><button onclick="showOnboarding()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;cursor:pointer">↺ 重新設定引導</button><button onclick="exportData()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;cursor:pointer">↓ 匯出備份</button></div></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="phead"><div class="plabel">投資入門</div></div>
+    <div class="pbody">
+      <div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:var(--green)">// 006208 是什麼</div><div class="kbody">富邦台50 ETF，追蹤台灣前50大市值企業。長期持有、定期定額是最適合的策略，不需要精確抓進出場時機。</div></div>
+      <div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:var(--amber)">// 向錢進怎麼用</div><div class="kbody">把它當「提醒鬧鐘」，到了目標價再搭配當天市場環境判斷。大環境不好時（升息、衰退恐慌），到了買入價也要謹慎。</div></div>
+      <div class="kcard"><div class="ktitle" style="color:rgba(0,229,204,0.7)">// AI 報告看什麼</div><div class="kbody">重點看：<strong style="color:var(--text-primary)">Fed 利率動向、費城半導體指數、美元/台幣匯率、美股大盤</strong>。這四個直接影響台股走向。</div></div>
+    </div>
+  </div>
+</div>
+<div id="onboarding" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(5,8,15,0.97);overflow-y:auto">
+  <div style="max-width:480px;margin:0 auto;padding:32px 20px 60px">
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--text-dim);margin-bottom:8px">INVEST OS · 初次設定</div>
+    <div style="font-size:26px;font-weight:700;color:var(--text-primary);margin-bottom:6px">歡迎，設定你的資產</div>
+    <div style="font-size:15px;color:var(--text-secondary);line-height:1.7;margin-bottom:28px">填入你真實的持倉資料，之後可以在設定頁隨時修改。所有資料只存在你的手機，不會上傳。</div>
+    <div class="ob-step"><div class="ob-step-title">① 總資產（含現金）</div><div class="ob-step-desc">你目前的投資帳戶 + 預備加碼的現金，大概填就好</div><div style="display:flex;align-items:center;gap:8px;margin-top:12px"><span style="font-family:var(--mono);font-size:20px;color:var(--text-secondary)">NT$</span><input class="finput" id="ob-total" type="number" placeholder="600000" style="font-size:20px;flex:1"></div></div>
+    <div style="height:1px;background:var(--border);margin:24px 0"></div>
+    <div class="ob-step"><div class="ob-step-title">② 目前持倉</div><div class="ob-step-desc">填入你現在持有的股票。沒有可以跳過，之後再加。</div><div id="ob-holdings" style="margin-top:12px;display:flex;flex-direction:column;gap:8px"></div><button onclick="obAddHolding()" style="margin-top:10px;width:100%;padding:10px;background:rgba(255,184,50,0.08);border:1px dashed rgba(255,184,50,0.3);border-radius:8px;color:var(--amber);font-family:var(--mono);font-size:13px;cursor:pointer">+ 新增持倉</button></div>
+    <div style="height:1px;background:var(--border);margin:24px 0"></div>
+    <div class="ob-step"><div class="ob-step-title">③ 完成</div><div class="ob-step-desc">向錢進、交易記錄、定期定額可以之後再慢慢填入。</div><button onclick="obFinish()" class="btn btn-p" style="width:100%;margin-top:16px;padding:16px;font-size:16px">開始使用 →</button><button onclick="obSkip()" style="width:100%;margin-top:8px;padding:12px;background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:13px;cursor:pointer">先跳過，使用範例資料</button></div>
+  </div>
+</div>
+<div id="hintOverlay" style="display:none" class="hint-overlay" onclick="closeHint(event)">
+  <div class="hint-sheet" id="hintSheet"><div class="hint-handle"></div><div class="hint-icon" id="hintIcon">💡</div><div class="hint-title" id="hintTitle">說明</div><div class="hint-body" id="hintBody"></div><button class="hint-close" onclick="closeHint()">關閉</button></div>
+</div>
+</main>
+<div class="modal-overlay" id="tradeModal">
+  <div class="modal">
+    <div class="modal-title"><span>// NEW TRADE RECORD</span><button class="modal-close" onclick="closeTradeModal()">✕</button></div>
+    <div class="g2" style="gap:10px;margin-bottom:10px">
+      <div class="fg"><label class="flbl">股票代號</label><input class="finput" id="tm-tk" placeholder="2330" oninput="autoName(this.value,'tm-nm')"></div>
+      <div class="fg"><label class="flbl">股票名稱</label><input class="finput" id="tm-nm" placeholder="台積電"></div>
+      <div class="fg"><label class="flbl">買賣</label><select class="fsel" id="tm-type"><option value="buy">買入 BUY</option><option value="sell">賣出 SELL</option></select></div>
+      <div class="fg"><label class="flbl">價格</label><input class="finput" id="tm-price" type="number" placeholder="890"></div>
+      <div class="fg"><label class="flbl">股數</label><input class="finput" id="tm-shares" type="number" placeholder="10"></div>
+      <div class="fg"><label class="flbl">日期</label><input class="finput" id="tm-date" type="date"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px">
+      <label class="flbl" style="margin-bottom:8px;display:block">消息來源</label>
+      <div class="src-chips" id="tmSrcChips"></div>
+      <div style="display:flex;gap:8px;margin-top:8px"><input class="finput" id="tm-src" placeholder="輸入來源後按 Enter 加入快選…" style="flex:1" oninput="document.querySelectorAll('#tmSrcChips .src-chip').forEach(c=>c.classList.remove('selected'))" onkeydown="if(event.key==='Enter'){addSrcQuick('tm-src');event.preventDefault()}"><button onclick="addSrcQuick('tm-src')" style="padding:0 14px;background:rgba(255,184,50,0.1);border:1px solid rgba(255,184,50,0.3);color:var(--amber);border-radius:6px;cursor:pointer;font-family:var(--mono);font-size:13px;white-space:nowrap">+ 加入</button></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px"><label class="flbl">已實現損益（賣出時填）</label><input class="finput" id="tm-pnl" type="number" placeholder="例：3500 或 -800"></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-p" onclick="addTrade()">確認新增</button><button class="btn btn-g" onclick="closeTradeModal()">取消</button></div>
+  </div>
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>
