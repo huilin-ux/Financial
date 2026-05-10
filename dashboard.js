@@ -1,8 +1,66 @@
 // ========== CONSTANTS ==========
 const COLORS = ['#ffb832','#00c896','#3a7bd5','#9b59b6','#f39c12'];
 const FINMIND_URL = 'https://api.finmindtrade.com/api/v4/data';
+const CLOUD_API_KEY = 'meow-cat-financial-2026';
 
-// ========== PERSISTENT DATA (localStorage) ==========
+// ========== CLOUD SYNC (Google Sheets via Apps Script Web App) ==========
+function getCloudUrl(){ return localStorage.getItem('cloud_api_url') || ''; }
+function setCloudUrl(u){ localStorage.setItem('cloud_api_url', String(u||'').trim()); }
+
+async function loadFromCloud() {
+  const url = getCloudUrl();
+  if (!url) return null;
+  try {
+    const res = await fetch(url + '?key=' + encodeURIComponent(CLOUD_API_KEY));
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    return cloudToLocal_(data);
+  } catch (e) {
+    console.warn('loadFromCloud failed:', e);
+    return null;
+  }
+}
+
+async function saveToCloud() {
+  const url = getCloudUrl();
+  if (!url) return false;
+  try {
+    const body = {
+      key: CLOUD_API_KEY,
+      holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
+      watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,source:a.src,status:a.status})),
+      dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending})),
+      trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
+      config: { total_assets: TOTAL_ASSETS }
+    };
+    const res = await fetch(url, {
+      method: 'POST',
+      body: JSON.stringify(body),
+      // Apps Script Web App needs this content-type quirk:
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+    });
+    return res.ok;
+  } catch (e) {
+    console.warn('saveToCloud failed:', e);
+    return false;
+  }
+}
+
+function cloudToLocal_(data) {
+  const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
+  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,src:r.source,note:'',status:r.status,p:r.buy_price+(r.take_profit-r.buy_price)*0.3}));
+  const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
+  const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,pending:!r.active}));
+  const cfg = data.config || {};
+  return {
+    TOTAL_ASSETS: Number(cfg.total_assets) || 0,
+    H: h, AL: al, TRADES: tr, DCA_ENTRIES: dca,
+    nid: al.length+1, ntid: tr.length+1, dcaNextId: dca.length+1
+  };
+}
+
+// ========== PERSISTENT DATA (localStorage as offline cache) ==========
 function loadData() {
   try {
     const d = JSON.parse(localStorage.getItem('invest_os_data') || 'null');
@@ -14,6 +72,7 @@ function saveData() {
   localStorage.setItem('invest_os_data', JSON.stringify({
     TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId
   }));
+  if (getCloudUrl()) saveToCloud();
 }
 
 const saved = loadData();
@@ -536,6 +595,8 @@ function renderSettingsData(){
   renderSettingsSrcChips();
   const cfgTotal=document.getElementById('cfg-total');
   if(cfgTotal) cfgTotal.value=TOTAL_ASSETS||'';
+  const cloudInput=document.getElementById('cloud-api-url');
+  if(cloudInput) cloudInput.value=getCloudUrl();
   const el=document.getElementById('cfg-holdings-list');
   if(!el) return;
   if(!H.length){el.innerHTML='<div style="font-family:var(--mono);font-size:13px;color:var(--text-dim);padding:8px 0">尚無持倉</div>';return;}
@@ -726,5 +787,67 @@ function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)re
 
 // ========== INIT ==========
 function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();}
-if(!loadData()) showOnboarding();
-else renderAll();
+
+async function bootstrap(){
+  const cloud = await loadFromCloud();
+  if (cloud) {
+    TOTAL_ASSETS = cloud.TOTAL_ASSETS;
+    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES;
+    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
+    saveData();
+    setCloudStatus('🟢 已連動 Google Sheet');
+    renderAll();
+    return;
+  }
+  if (loadData()) {
+    setCloudStatus(getCloudUrl() ? '🟡 雲端讀取失敗，用本機快取' : '⚪ 未連動雲端');
+    renderAll();
+  } else {
+    showOnboarding();
+  }
+}
+
+function setCloudStatus(msg){
+  const el = document.getElementById('cloudStatus');
+  if (el) el.textContent = msg;
+}
+
+async function manualSync(){
+  setCloudStatus('🔄 同步中…');
+  const ok = await saveToCloud();
+  if (ok) {
+    setCloudStatus('🟢 已同步至 Google Sheet');
+    setTimeout(() => setCloudStatus('🟢 已連動 Google Sheet'), 2000);
+  } else {
+    setCloudStatus('🔴 同步失敗，檢查 API URL');
+  }
+}
+
+async function pullFromCloud(){
+  if (!getCloudUrl()) { alert('請先填入 Apps Script Web App URL'); return; }
+  setCloudStatus('🔄 從雲端拉取…');
+  const cloud = await loadFromCloud();
+  if (cloud) {
+    TOTAL_ASSETS = cloud.TOTAL_ASSETS;
+    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES;
+    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
+    localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,nid,ntid,dcaNextId}));
+    setCloudStatus('🟢 已從 Google Sheet 拉取');
+    renderAll();
+  } else {
+    setCloudStatus('🔴 拉取失敗，檢查 API URL');
+  }
+}
+
+function saveCloudConfig(){
+  const url = document.getElementById('cloud-api-url').value.trim();
+  setCloudUrl(url);
+  if (url) {
+    setCloudStatus('🔄 測試連線中…');
+    pullFromCloud();
+  } else {
+    setCloudStatus('⚪ 未連動雲端');
+  }
+}
+
+bootstrap();
