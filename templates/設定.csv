@@ -2,5 +2,5 @@ key,value
 total_assets,600000
 line_token,貼上你的_LINE_Channel_Access_Token
 line_user_id,U0ed4c631874558b053046837f1b433fe
-claude_key,貼上你的_Anthropic_API_Key
+gemini_key,貼上你的_Gemini_API_Key
 owner_name,Kate

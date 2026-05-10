@@ -1,6 +1,8 @@
 # INVEST OS 設定說明
 
-本系統由 Google Apps Script + LINE Messaging API + Anthropic API 組成，所有資料來源都在同一個 Google Sheets。
+本系統由 Google Apps Script + LINE Messaging API + Google Gemini API 組成，所有資料來源都在同一個 Google Sheets。
+
+> Gemini 用 free tier 即可（每分鐘 15 次、每天 1,500 次），自用綽綽有餘。
 
 > 推播使用 LINE Messaging API 的 Push Message（LINE Notify 已於 2025/03 停服，故不採用）。需要一個 Messaging API channel 的 access token，以及收訊者的 LINE userId。
 
@@ -62,7 +64,7 @@
 | total_assets  | 600000                                 |
 | line_token    | LINE Messaging API 的 Channel access token |
 | line_user_id  | 收訊者的 LINE userId（U 開頭那串）      |
-| claude_key    | 你的 Anthropic API Key                 |
+| gemini_key    | Google Gemini API Key（免費）          |
 | owner_name    | Kate                                   |
 
 第一列為標題列（key、value），第二列開始才是資料。
@@ -76,7 +78,11 @@
 2. **取得自己的 LINE userId**：
    - 在 channel 的 `Messaging API` 設定頁有 `Your user ID` 欄位（U 開頭，35 字元）。
    - 或在 webhook 接收任一則訊息中讀取 `events[0].source.userId`。
-3. **Anthropic API Key**：前往 <https://console.anthropic.com/> 建立 API Key。
+3. **Gemini API Key（免費）**：
+   - 前往 <https://aistudio.google.com/apikey>
+   - 用 Google 帳號登入 → 點 **Create API key** → 選一個 Google Cloud 專案（沒有就讓它幫你建）
+   - 複製出現的 `AIzaSy...` 那一串
+   - 不需要綁信用卡，free tier 每天 1,500 次請求對自用足夠
 4. **Google Sheets ID**：開啟試算表後從網址複製 `/d/` 後面那一段。
 
 ## 三、部署步驟（5 步）
@@ -110,4 +116,4 @@ notified_{stock_tk}_{type}_{yyyyMMdd}
 
 - **股價抓不到**：Finmind 公開端點有流量限制，少量自用通常沒問題，必要時可申請免費 token 在 `getPrice` 中加上 `&token=` 參數。
 - **LINE 沒收到**：依序檢查（1）Channel access token 是否正確、未過期；（2）你的帳號是否已加 Bot 為好友（Push 給沒加好友的 userId 會 403）；（3）`line_user_id` 是 `U` 開頭的 35 字元字串，不是 Display Name。Messaging API 免費方案每月 200 則訊息以內。
-- **Claude 訊息空白**：API Key 沒額度或 model 名稱錯誤；先在 `testAll` 中加一行 `Logger.log(askClaude(cfg.claude_key, '說個哈囉'))` 排查。
+- **Gemini 訊息空白**：常見原因是 API Key 失效、被 safety filter 擋下，或超出 free tier 額度。先在 `testAll` 中加一行 `Logger.log(askGemini(cfg.gemini_key, '說個哈囉'))` 排查；HTTP 400 通常是 key 錯，429 是超量。
