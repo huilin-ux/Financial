@@ -13,6 +13,44 @@
 const SHEET_ID = '1-7Oj89r9WQshp-ShwEVSthJoChBrdgvvJP2YITasDiU';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
+const API_KEY = 'meow-cat-financial-2026';
+
+// ========== Web API（Dashboard 用）==========
+
+function doGet(e) {
+  try {
+    if ((e.parameter || {}).key !== API_KEY) return apiResp_({ error: 'unauthorized' }, 401);
+    return apiResp_({
+      holdings: getHoldings(),
+      watchlist: getWatchlist(),
+      dca: getDCA(),
+      trades: getTrades(),
+      config: getConfig()
+    });
+  } catch (err) {
+    return apiResp_({ error: err.message }, 500);
+  }
+}
+
+function doPost(e) {
+  try {
+    const body = JSON.parse(e.postData.contents || '{}');
+    if (body.key !== API_KEY) return apiResp_({ error: 'unauthorized' }, 401);
+    if (body.holdings) writeHoldings_(body.holdings);
+    if (body.watchlist) writeWatchlist_(body.watchlist);
+    if (body.dca) writeDCA_(body.dca);
+    if (body.trades) writeTrades_(body.trades);
+    if (body.config) writeConfig_(body.config);
+    return apiResp_({ ok: true, saved: Object.keys(body).filter(k => k !== 'key') });
+  } catch (err) {
+    return apiResp_({ error: err.message }, 500);
+  }
+}
+
+function apiResp_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
 
 // ========== 資料讀取 ==========
 
@@ -123,6 +161,96 @@ function getDCA() {
     Logger.log('getDCA 失敗：' + err.message);
     throw err;
   }
+}
+
+/**
+ * 讀取「交易記錄」工作表（不存在會自動建立）
+ */
+function getTrades() {
+  try {
+    const ss = SpreadsheetApp.openById(SHEET_ID);
+    let sh = ss.getSheetByName('交易記錄');
+    if (!sh) {
+      sh = ss.insertSheet('交易記錄');
+      sh.appendRow(['date', 'type', 'stock_tk', 'stock_nm', 'shares', 'price', 'source', 'pnl']);
+    }
+    const data = sh.getDataRange().getValues();
+    const rows = [];
+    for (let i = 1; i < data.length; i++) {
+      const [date, type, tk, nm, shares, price, src, pnl] = data[i];
+      if (!tk) continue;
+      rows.push({
+        date: date instanceof Date ? Utilities.formatDate(date, 'Asia/Taipei', 'yyyy-MM-dd') : String(date || ''),
+        type: String(type || 'buy').trim(),
+        stock_tk: String(tk).trim(),
+        stock_nm: String(nm || '').trim(),
+        shares: Number(shares) || 0,
+        price: Number(price) || 0,
+        source: String(src || '').trim(),
+        pnl: pnl === '' || pnl == null ? null : Number(pnl)
+      });
+    }
+    return rows;
+  } catch (err) {
+    Logger.log('getTrades 失敗：' + err.message);
+    return [];
+  }
+}
+
+// ========== 寫入函式（doPost 用）==========
+
+function writeHoldings_(rows) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sh = ss.getSheetByName('持倉') || ss.insertSheet('持倉');
+  sh.clear();
+  sh.appendRow(['stock_tk', 'stock_nm', 'shares', 'cost', 'buy_alert', 'sell_alert']);
+  rows.forEach(r => sh.appendRow([
+    r.stock_tk || '', r.stock_nm || '', r.shares || 0, r.cost || 0, r.buy_alert || 0, r.sell_alert || 0
+  ]));
+}
+
+function writeWatchlist_(rows) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sh = ss.getSheetByName('向錢進') || ss.insertSheet('向錢進');
+  sh.clear();
+  sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status']);
+  rows.forEach(r => sh.appendRow([
+    r.stock_tk || '', r.stock_nm || '', r.buy_price || 0, r.take_profit || 0,
+    r.stop_loss || 0, r.source || '', r.status || 'watching'
+  ]));
+}
+
+function writeDCA_(rows) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sh = ss.getSheetByName('定期定額') || ss.insertSheet('定期定額');
+  sh.clear();
+  sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active']);
+  rows.forEach(r => sh.appendRow([
+    r.stock_tk || '', r.stock_nm || '', r.deduct_day || 0, r.amount || 0,
+    r.active === false ? 'FALSE' : 'TRUE'
+  ]));
+}
+
+function writeTrades_(rows) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sh = ss.getSheetByName('交易記錄') || ss.insertSheet('交易記錄');
+  sh.clear();
+  sh.appendRow(['date', 'type', 'stock_tk', 'stock_nm', 'shares', 'price', 'source', 'pnl']);
+  rows.forEach(r => sh.appendRow([
+    r.date || '', r.type || 'buy', r.stock_tk || '', r.stock_nm || '',
+    r.shares || 0, r.price || 0, r.source || '',
+    r.pnl == null ? '' : r.pnl
+  ]));
+}
+
+function writeConfig_(cfg) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const sh = ss.getSheetByName('設定') || ss.insertSheet('設定');
+  const existing = getConfig();
+  const merged = Object.assign({}, existing, cfg);
+  sh.clear();
+  sh.appendRow(['key', 'value']);
+  Object.entries(merged).forEach(([k, v]) => sh.appendRow([k, v]));
 }
 
 // ========== 外部 API ==========

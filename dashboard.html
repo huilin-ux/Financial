@@ -458,6 +458,22 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 </div>
 <div id="tab-settings" class="section">
   <div class="panel" style="margin-bottom:12px">
+    <div class="phead"><div class="plabel">雲端同步（Google Sheet）</div><span id="cloudStatus" style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">⚪ 未連動雲端</span></div>
+    <div class="pbody">
+      <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px;line-height:1.6">填入你的 Apps Script Web App URL，<strong style="color:var(--amber)">所有裝置會自動同步</strong>。手機 / 電腦看到同一份資料，LINE Bot 也讀同一個 Sheet。</div>
+      <div class="fg" style="margin-bottom:12px">
+        <label class="flbl">Apps Script Web App URL</label>
+        <input class="finput" id="cloud-api-url" placeholder="https://script.google.com/macros/s/.../exec" oninput="document.getElementById('cloud-api-url').value=this.value.trim()">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="saveCloudConfig()" class="btn btn-p" style="padding:8px 16px">儲存並測試</button>
+        <button onclick="pullFromCloud()" class="btn btn-g" style="padding:8px 16px">從雲端拉取</button>
+        <button onclick="manualSync()" class="btn btn-g" style="padding:8px 16px">手動推送</button>
+      </div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:12px;line-height:1.6">部署步驟：Apps Script → 部署 → 新增部署 → 類型「網頁應用程式」→ 執行身份「我」→ 存取權「任何人」→ 部署 → 複製 URL 貼到上面。</div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:12px">
     <div class="phead"><div class="plabel">消息來源管理</div><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">快選清單</span></div>
     <div class="pbody">
       <div style="font-size:14px;color:var(--text-secondary);margin-bottom:12px">新增過的來源會在所有表單顯示為快選。點 ✕ 刪除。</div>
