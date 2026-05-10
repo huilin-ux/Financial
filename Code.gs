@@ -27,7 +27,9 @@ function getConfig() {
     const cfg = {};
     for (let i = 1; i < data.length; i++) {
       const [k, v] = data[i];
-      if (k) cfg[String(k).trim()] = v;
+      if (!k) continue;
+      const key = String(k).trim();
+      cfg[key] = typeof v === 'string' ? v.replace(/\s+/g, '') : v;
     }
     return cfg;
   } catch (err) {
@@ -126,29 +128,35 @@ function getDCA() {
 // ========== 外部 API ==========
 
 /**
- * 用 Finmind 公開 API 抓台股最新收盤價（不需 token）
- * 取最近 7 天資料中最後一筆收盤價，避免假日或停機抓不到
+ * 用 Yahoo Finance 公開 API 抓台股最新收盤價（不需 token）
+ * 自動處理 4 碼/6 碼台股，回傳最近一筆 regularMarketPrice
  */
 function getPrice(tk) {
   try {
-    const today = new Date();
-    const start = new Date();
-    start.setDate(today.getDate() - 7);
-    const fmt = d => Utilities.formatDate(d, 'Asia/Taipei', 'yyyy-MM-dd');
-    const url = FINMIND_BASE
-      + '?dataset=TaiwanStockPrice'
-      + '&data_id=' + encodeURIComponent(tk)
-      + '&start_date=' + fmt(start)
-      + '&end_date=' + fmt(today);
-    const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const code = String(tk).trim();
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+      + encodeURIComponent(code) + '.TW?interval=1d&range=5d';
+    const res = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
     if (res.getResponseCode() !== 200) {
-      Logger.log('getPrice ' + tk + ' HTTP ' + res.getResponseCode());
+      Logger.log('getPrice ' + code + ' HTTP ' + res.getResponseCode());
       return null;
     }
     const json = JSON.parse(res.getContentText());
-    if (!json.data || json.data.length === 0) return null;
-    const last = json.data[json.data.length - 1];
-    return Number(last.close);
+    const result = json.chart && json.chart.result && json.chart.result[0];
+    if (!result) return null;
+    const meta = result.meta || {};
+    if (meta.regularMarketPrice != null) return Number(meta.regularMarketPrice);
+    const closes = result.indicators && result.indicators.quote
+      && result.indicators.quote[0] && result.indicators.quote[0].close;
+    if (closes && closes.length) {
+      for (let i = closes.length - 1; i >= 0; i--) {
+        if (closes[i] != null) return Number(closes[i]);
+      }
+    }
+    return null;
   } catch (err) {
     Logger.log('getPrice ' + tk + ' 失敗：' + err.message);
     return null;
@@ -161,7 +169,9 @@ function getPrice(tk) {
  *   userId = 收訊者的 LINE userId（U 開頭那串）
  */
 function sendLine(token, msg, userId) {
-  if (!token || !userId) {
+  const cleanToken = String(token || '').replace(/\s+/g, '');
+  const cleanUserId = String(userId || '').trim();
+  if (!cleanToken || !cleanUserId) {
     Logger.log('sendLine 未設定 token 或 userId，跳過');
     return false;
   }
@@ -169,9 +179,9 @@ function sendLine(token, msg, userId) {
     const res = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + token },
+      headers: { Authorization: 'Bearer ' + cleanToken },
       payload: JSON.stringify({
-        to: userId,
+        to: cleanUserId,
         messages: [{ type: 'text', text: msg }]
       }),
       muteHttpExceptions: true
