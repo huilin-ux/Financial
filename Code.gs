@@ -10,7 +10,7 @@
  */
 
 // ========== 設定區 ==========
-const SHEET_ID = '【請填入你的 Google Sheets ID】';
+const SHEET_ID = '1-7Oj89r9WQshp-ShwEVSthJoChBrdgvvJP2YITasDiU';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
 
