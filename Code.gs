@@ -35,6 +35,14 @@ function doGet(e) {
 function doPost(e) {
   try {
     const body = JSON.parse(e.postData.contents || '{}');
+
+    // LINE Messaging API webhook
+    if (body.events && Array.isArray(body.events)) {
+      handleLineWebhook_(body);
+      return apiResp_({ ok: true });
+    }
+
+    // Dashboard cloud-sync
     if (body.key !== API_KEY) return apiResp_({ error: 'unauthorized' }, 401);
     if (body.holdings) writeHoldings_(body.holdings);
     if (body.watchlist) writeWatchlist_(body.watchlist);
@@ -46,6 +54,231 @@ function doPost(e) {
     return apiResp_({ error: err.message }, 500);
   }
 }
+
+// ========== LINE Webhook 雙向對話 ==========
+
+function handleLineWebhook_(body) {
+  const cfg = getConfig();
+  body.events.forEach(event => {
+    if (event.type !== 'message' || event.message.type !== 'text') return;
+    // 只回應主人
+    if (cfg.line_user_id && event.source.userId !== cfg.line_user_id) {
+      replyLine_(cfg.line_token, event.replyToken, '抱歉，這個 Bot 只服務主人 🙇');
+      return;
+    }
+    const userText = event.message.text.trim();
+    try {
+      const reply = executeIntent_(userText, cfg);
+      replyLine_(cfg.line_token, event.replyToken, reply);
+    } catch (err) {
+      replyLine_(cfg.line_token, event.replyToken, '❌ 處理失敗：' + err.message);
+    }
+  });
+}
+
+function executeIntent_(text, cfg) {
+  // 快速關鍵字匹配
+  const lower = text.toLowerCase();
+  if (/^(說明|help|推播時機|時機|功能|menu)$/i.test(text)) return helpText_();
+  if (/^(查持倉|持倉|我的持倉)$/i.test(text)) return listHoldings_();
+  if (/^(查向錢進|向錢進|清單|追蹤)$/i.test(text)) return listWatchlist_();
+  if (/^(現在損益|損益|我的損益|現況)$/i.test(text)) return currentPnl_();
+  if (/^(今日早報|早報|生成早報)$/i.test(text)) {
+    // 即時生成早報並回傳
+    try { sendMorningReport(); return '☀️ 早報已生成並推送，請看下一則訊息'; }
+    catch (e) { return '早報生成失敗：' + e.message; }
+  }
+
+  // 用 Gemini 解析自然語
+  const parsed = parseIntent_(text, cfg.gemini_key);
+  if (!parsed) return '我聽不懂這個指令 🤔 試試「說明」看可以做什麼。';
+
+  switch (parsed.intent) {
+    case 'add_trade': return doAddTrade_(parsed.data);
+    case 'add_watch': return doAddWatch_(parsed.data);
+    case 'list_holdings': return listHoldings_();
+    case 'list_watch': return listWatchlist_();
+    case 'current_pnl': return currentPnl_();
+    case 'help': return helpText_();
+    default: return '我聽不懂這個指令 🤔 試試「說明」看可以做什麼。';
+  }
+}
+
+function parseIntent_(text, apiKey) {
+  const prompt = `用戶在 LINE 傳了訊息：「${text}」
+
+判斷意圖，**只輸出 JSON**（不要 markdown）：
+{"intent": "...", "data": {...}}
+
+intent 種類：
+- add_trade: 記錄一筆交易。data: {type:"buy"|"sell", tk:"代號", nm:"名稱", shares:數字, price:數字, source:"來源", pnl:賣出損益}
+- add_watch: 新增向錢進。data: {tk, nm, buy_price, take_profit, stop_loss, source}
+- list_holdings | list_watch | current_pnl | help: 不需要 data
+- unknown: 不能理解
+
+範例：
+"買 2330 10股 1050" → {"intent":"add_trade","data":{"type":"buy","tk":"2330","nm":"台積電","shares":10,"price":1050,"source":"自己分析"}}
+"我買了聯發科 5 股 1400" → {"intent":"add_trade","data":{"type":"buy","tk":"2454","nm":"聯發科","shares":5,"price":1400,"source":"自己分析"}}
+"賣 2330 5 1100 賺 2500" → {"intent":"add_trade","data":{"type":"sell","tk":"2330","nm":"台積電","shares":5,"price":1100,"pnl":2500,"source":"自己分析"}}
+"新增向錢進 2454 聯發科 買1300 利1500 損1200 王同學說" → {"intent":"add_watch","data":{"tk":"2454","nm":"聯發科","buy_price":1300,"take_profit":1500,"stop_loss":1200,"source":"王同學說"}}
+
+台股代號對照：台積電=2330、聯發科=2454、鴻海=2317、台塑=1301、富邦台50=006208、元大台灣50=0050、台達電=2308。
+如果用戶只給名稱沒給代號，你補上常見對照；如果沒提來源就填「自己分析」。`;
+
+  const out = askGemini(apiKey, prompt);
+  if (!out) return null;
+  try {
+    const json = JSON.parse(out.replace(/```json|```/g, '').trim());
+    return json;
+  } catch (e) {
+    Logger.log('parseIntent JSON 解析失敗：' + out);
+    return null;
+  }
+}
+
+function helpText_() {
+  return `📅 投資阿喵共・推播時機
+
+🌅 每天 08:30 個人化早報
+💰 扣款日 08:00 定期定額提醒
+🎯 盤中每 30 分 向錢進到價推播
+📊 每週五 18:00 週報
+
+📝 你可以傳這些訊息給我：
+・「買 2330 10股 1050」記錄交易
+・「賣 2330 5股 1100 賺 2500」
+・「新增向錢進 2454 聯發科 買1300 利1500 損1200」
+・「查持倉」「查向錢進」「現在損益」「說明」`;
+}
+
+function listHoldings_() {
+  const list = getHoldings();
+  if (!list.length) return '目前沒有持倉 📭';
+  const lines = list.map(h => {
+    const price = getPrice(h.stock_tk) || h.cost;
+    const pnl = (price - h.cost) * h.shares;
+    const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
+    return `・${h.stock_nm}(${h.stock_tk}) ${h.shares}股\n  現價 ${price} | 成本 ${h.cost} | 損益 ${pnl.toFixed(0)} (${pct}%)`;
+  });
+  return '📊 你的持倉\n' + lines.join('\n');
+}
+
+function listWatchlist_() {
+  const list = getWatchlist();
+  if (!list.length) return '向錢進清單是空的 📭';
+  const lines = list.map(w => {
+    const price = getPrice(w.stock_tk) || w.buy_price;
+    if (w.status === 'holding') {
+      const tpDist = w.take_profit ? ((w.take_profit - price) / price * 100).toFixed(1) : '?';
+      return `・${w.stock_nm}(${w.stock_tk}) 💼持有\n  現價 ${price} | 距停利 ${w.take_profit} 差 ${tpDist}%`;
+    } else {
+      const buyDist = ((price - w.buy_price) / w.buy_price * 100).toFixed(1);
+      return `・${w.stock_nm}(${w.stock_tk}) 👀追蹤 [${w.source}]\n  現價 ${price} | 買入 ${w.buy_price} (差 ${buyDist}%)`;
+    }
+  });
+  return '🎯 向錢進清單\n' + lines.join('\n');
+}
+
+function currentPnl_() {
+  const list = getHoldings();
+  if (!list.length) return '沒有持倉，無法計算損益 📭';
+  let totalCost = 0, totalValue = 0;
+  list.forEach(h => {
+    const price = getPrice(h.stock_tk) || h.cost;
+    totalCost += h.cost * h.shares;
+    totalValue += price * h.shares;
+  });
+  const pnl = totalValue - totalCost;
+  const pct = totalCost > 0 ? (pnl / totalCost * 100).toFixed(2) : '0';
+  const emoji = pnl >= 0 ? '📈' : '📉';
+  return `${emoji} 現在損益\n總成本：${totalCost.toFixed(0)}\n總市值：${totalValue.toFixed(0)}\n未實現損益：${pnl.toFixed(0)} (${pct}%)`;
+}
+
+function doAddTrade_(d) {
+  if (!d || !d.tk || !d.price || !d.shares) return '❌ 缺少必要資訊（代號、價格、股數）。範例：「買 2330 10股 1050」';
+  const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd');
+  appendTradeRow_({
+    date: today,
+    type: d.type || 'buy',
+    stock_tk: String(d.tk),
+    stock_nm: d.nm || '',
+    shares: Number(d.shares),
+    price: Number(d.price),
+    source: d.source || '自己分析',
+    pnl: d.pnl == null ? '' : Number(d.pnl)
+  });
+  const typeWord = d.type === 'sell' ? '賣出' : '買進';
+  let reply = `✅ 已記錄交易\n${d.nm || d.tk}(${d.tk}) ${typeWord} ${d.shares} 股 @ ${d.price}`;
+  if (d.pnl != null) reply += `\n實現損益：${d.pnl}`;
+  return reply;
+}
+
+function doAddWatch_(d) {
+  if (!d || !d.tk || !d.buy_price) return '❌ 缺少必要資訊（代號、買入價）。範例：「新增向錢進 2454 聯發科 買1300 利1500 損1200」';
+  appendWatchRow_({
+    stock_tk: String(d.tk),
+    stock_nm: d.nm || '',
+    buy_price: Number(d.buy_price),
+    take_profit: Number(d.take_profit) || 0,
+    stop_loss: Number(d.stop_loss) || 0,
+    source: d.source || '自己分析',
+    status: 'watching'
+  });
+  return `🎯 已加入向錢進\n${d.nm || d.tk}(${d.tk})\n買入 ${d.buy_price} | 停利 ${d.take_profit||'—'} | 停損 ${d.stop_loss||'—'}`;
+}
+
+function appendTradeRow_(r) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName('交易記錄');
+  if (!sh) {
+    sh = ss.insertSheet('交易記錄');
+    sh.appendRow(['date', 'type', 'stock_tk', 'stock_nm', 'shares', 'price', 'source', 'pnl']);
+  }
+  sh.appendRow([r.date, r.type, r.stock_tk, r.stock_nm, r.shares, r.price, r.source, r.pnl]);
+}
+
+function appendWatchRow_(r) {
+  const ss = SpreadsheetApp.openById(SHEET_ID);
+  let sh = ss.getSheetByName('向錢進');
+  if (!sh) {
+    sh = ss.insertSheet('向錢進');
+    sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status']);
+  }
+  sh.appendRow([r.stock_tk, r.stock_nm, r.buy_price, r.take_profit, r.stop_loss, r.source, r.status]);
+}
+
+function replyLine_(token, replyToken, text) {
+  const cleanToken = String(token || '').replace(/\s+/g, '');
+  if (!cleanToken || !replyToken) return;
+  try {
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + cleanToken },
+      payload: JSON.stringify({
+        replyToken: replyToken,
+        messages: [{
+          type: 'text',
+          text: text,
+          quickReply: { items: QUICK_REPLY_MENU_ }
+        }]
+      }),
+      muteHttpExceptions: true
+    });
+  } catch (err) {
+    Logger.log('replyLine 失敗：' + err.message);
+  }
+}
+
+// 每次 Bot 回訊息都會在下方顯示這排快速按鈕
+const QUICK_REPLY_MENU_ = [
+  { type: 'action', action: { type: 'message', label: '📊 查持倉', text: '查持倉' } },
+  { type: 'action', action: { type: 'message', label: '🎯 查向錢進', text: '查向錢進' } },
+  { type: 'action', action: { type: 'message', label: '📈 現在損益', text: '現在損益' } },
+  { type: 'action', action: { type: 'message', label: '☀️ 今日早報', text: '今日早報' } },
+  { type: 'action', action: { type: 'message', label: '📅 推播時機', text: '推播時機' } },
+  { type: 'action', action: { type: 'message', label: '❓ 說明', text: '說明' } }
+];
 
 function apiResp_(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
