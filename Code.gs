@@ -260,18 +260,29 @@ function writeConfig_(cfg) {
  * 自動處理 4 碼/6 碼台股，回傳最近一筆 regularMarketPrice
  */
 function getPrice(tk) {
+  const code = String(tk).trim();
+  let price = fetchYahooPrice_(code);
+  if (price !== null) return price;
+  // Google Sheets 會把 006208 之類 ETF 代號吃掉前導 0，補回去再試一次
+  if (/^\d{4}$/.test(code)) {
+    price = fetchYahooPrice_('00' + code);
+    if (price !== null) {
+      Logger.log('getPrice ' + code + ' 補成 00' + code + ' 抓到 ' + price);
+      return price;
+    }
+  }
+  return null;
+}
+
+function fetchYahooPrice_(code) {
   try {
-    const code = String(tk).trim();
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
       + encodeURIComponent(code) + '.TW?interval=1d&range=5d';
     const res = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
       headers: { 'User-Agent': 'Mozilla/5.0' }
     });
-    if (res.getResponseCode() !== 200) {
-      Logger.log('getPrice ' + code + ' HTTP ' + res.getResponseCode());
-      return null;
-    }
+    if (res.getResponseCode() !== 200) return null;
     const json = JSON.parse(res.getContentText());
     const result = json.chart && json.chart.result && json.chart.result[0];
     if (!result) return null;
@@ -286,7 +297,6 @@ function getPrice(tk) {
     }
     return null;
   } catch (err) {
-    Logger.log('getPrice ' + tk + ' 失敗：' + err.message);
     return null;
   }
 }
@@ -500,7 +510,7 @@ ${watchAlerts.length ? watchAlerts.join('\n') : '無接近價位的標的'}
 語氣溫暖可愛、適當 emoji、不要列舉太多，重點是把搜到的真實資料融入分析。`;
 
     const msg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
-    sendLine(cfg.line_token, '☀️ INVEST OS 今日早報\n' + msg, cfg.line_user_id);
+    sendLine(cfg.line_token, '☀️ 投資阿喵共・今日早報\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
@@ -531,7 +541,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的買入提醒，語氣要冷靜理性、像個穩健的投資夥伴在提點，
 提醒他確認資金、按原計畫分批進場，不要因為短線波動衝動加碼，適度使用 emoji。`;
           const msg = askGemini(cfg.gemini_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到買入價，請確認後執行。`;
-          sendLine(cfg.line_token, '🎯 向錢進・買入到價\n' + msg, cfg.line_user_id);
+          sendLine(cfg.line_token, '🎯 投資阿喵共・買入到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'buy');
         }
       }
@@ -544,7 +554,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的恭喜訊息，語氣超級開心、誇張一點，
 強調他眼光真的很棒，提醒他按原計畫獲利了結，不要貪心，多用 🎉🥳💰 等 emoji。`;
           const msg = askGemini(cfg.gemini_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到停利價，恭喜！`;
-          sendLine(cfg.line_token, '🎉 向錢進・停利到價\n' + msg, cfg.line_user_id);
+          sendLine(cfg.line_token, '🎉 投資阿喵共・停利到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'tp');
         }
       }
@@ -557,7 +567,7 @@ function checkWatchlistAlerts() {
 請用繁體中文寫一段 80-120 字的提醒，語氣沉穩、堅定、支持，
 強調停損是保護本金、不是失敗，提醒他按計畫紀律執行、保留資金等下個機會，少量溫和的 emoji。`;
           const msg = askGemini(cfg.gemini_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 已到停損價，請依紀律執行。`;
-          sendLine(cfg.line_token, '🛡️ 向錢進・停損到價\n' + msg, cfg.line_user_id);
+          sendLine(cfg.line_token, '🛡️ 投資阿喵共・停損到價\n' + msg, cfg.line_user_id);
           markNotified(w.stock_tk, 'sl');
         }
       }
@@ -595,7 +605,7 @@ ${lines.join('\n')}
 - 適度使用 emoji`;
 
     const msg = askGemini(cfg.gemini_key, prompt) || '今天是定期定額扣款日，記得確認帳戶餘額喔！';
-    sendLine(cfg.line_token, '💰 INVEST OS 定期定額提醒\n' + msg, cfg.line_user_id);
+    sendLine(cfg.line_token, '💰 投資阿喵共・定期定額提醒\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('checkDCAReminder 失敗：' + err.message);
   }
@@ -648,7 +658,7 @@ ${lines.join('\n') || '（無持倉）'}
 - 適當 emoji，溫暖可愛`;
 
     const msg = askGemini(cfg.gemini_key, prompt) || '本週辛苦了，週末愉快！';
-    sendLine(cfg.line_token, '📊 INVEST OS 週五週報\n' + msg, cfg.line_user_id);
+    sendLine(cfg.line_token, '📊 投資阿喵共・週五週報\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendWeeklyReport 失敗：' + err.message);
   }
