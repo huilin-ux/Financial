@@ -326,9 +326,10 @@ function sendLine(token, msg, userId) {
 }
 
 /**
- * 呼叫 Google Gemini API（免費 tier），回傳純文字回覆
+ * 呼叫 Google Gemini API（免費 tier），回傳純文字回覆。
+ * grounded=true 會開啟 Google Search grounding，AI 會去搜當天真實資料再回答。
  */
-function askGemini(apiKey, prompt) {
+function askGemini(apiKey, prompt, grounded) {
   if (!apiKey) {
     Logger.log('askGemini 未設定 API Key');
     return '';
@@ -336,13 +337,15 @@ function askGemini(apiKey, prompt) {
   try {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
       + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: grounded ? 1500 : 500, temperature: 0.8 }
+    };
+    if (grounded) body.tools = [{ google_search: {} }];
     const res = UrlFetchApp.fetch(url, {
       method: 'post',
       contentType: 'application/json',
-      payload: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 500, temperature: 0.8 }
-      }),
+      payload: JSON.stringify(body),
       muteHttpExceptions: true
     });
     if (res.getResponseCode() !== 200) {
@@ -455,28 +458,38 @@ function sendMorningReport() {
     });
 
     const prompt =
-`你是 ${owner} 的投資小助手，請寫一封今日投資早報。
+`你是 ${owner} 的投資小助手。今天請主動搜尋以下資訊：
+1. 昨日美股 S&P500、Nasdaq、費城半導體指數收盤
+2. 今天台股加權指數開盤狀況
+3. USD/TWD 匯率
+4. 任何影響台股的重大新聞（Fed 政策、地緣政治、半導體產業）
 
-【持倉狀況】
+然後產出一封給 ${owner} 的個人化早報。
+
+【${owner} 的持倉】
 總成本：${totalCost.toFixed(0)}
 總市值：${totalValue.toFixed(0)}
 總未實現損益：${totalPL.toFixed(0)}（${fmtPct_(totalPct)}）
-明細：
-${holdingLines.join('\n') || '（目前無持倉）'}
+${holdingLines.join('\n') || '（無持倉）'}
 
 【向錢進到價狀況】
-${watchAlerts.length ? watchAlerts.join('\n') : '目前沒有接近價位的標的'}
+${watchAlerts.length ? watchAlerts.join('\n') : '無接近價位的標的'}
 
-請用繁體中文寫一段 100-150 字的早報，要求：
-- 開頭親切稱呼「${owner}」
-- 溫暖、可愛、像朋友般的口吻
-- 適當使用 emoji
-- 賺錢時稱讚他眼光好
-- 虧損時溫柔安慰、鼓勵長期視角
-- 若有向錢進到價，提醒他按計畫執行、不要追高殺低
-- 結尾給一句正能量祝福`;
+請用繁體中文寫一段 **200-280 字** LINE 早報，格式：
+🌅 早安 ${owner}！
+[一句話總結今日國際盤勢 + 真實數據]
 
-    const msg = askGemini(cfg.gemini_key, prompt) || '今日早報生成失敗，請稍後查看。';
+📊 你的持倉：
+[結合搜到的資訊，分析持倉今天可能受什麼影響，賺錢誇獎、虧損安慰]
+
+🎯 今日重點：
+[1-2 個你搜到的關鍵新聞或資料，跟她有沒有關聯]
+
+💡 [一句正能量祝福]
+
+語氣溫暖可愛、適當 emoji、不要列舉太多，重點是把搜到的真實資料融入分析。`;
+
+    const msg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
     sendLine(cfg.line_token, '☀️ INVEST OS 今日早報\n' + msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);

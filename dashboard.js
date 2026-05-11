@@ -560,14 +560,21 @@ async function genReport(){
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        contents:[{parts:[{text:prompt}]}],
-        generationConfig:{maxOutputTokens:1500,temperature:0.8,responseMimeType:'application/json'}
+        contents:[{parts:[{text:prompt+'\n\n請先用 Google Search 搜尋當天美股、台股、半導體、匯率的真實收盤/開盤數據再回答。markets 欄位的數字必須來自搜尋結果。'}]}],
+        tools:[{google_search:{}}],
+        generationConfig:{maxOutputTokens:2000,temperature:0.7}
       })
     });
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data=await res.json();
-    const text=data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'';
-    const r=JSON.parse(text.replace(/```json|```/g,'').trim());
+    const cand=data.candidates?.[0];
+    const text=cand?.content?.parts?.map(p=>p.text).join('')||'';
+    // Extract JSON from response (may be wrapped in markdown)
+    const jsonMatch=text.match(/\{[\s\S]*\}/);
+    if(!jsonMatch) throw new Error('No JSON in response');
+    const r=JSON.parse(jsonMatch[0]);
+    // Grounding sources
+    const sources=cand?.groundingMetadata?.groundingChunks?.map(c=>c.web).filter(Boolean)||[];
 
     const sm={bullish:{l:'看漲 BULL',c:'var(--green)'},bearish:{l:'看跌 BEAR',c:'var(--red)'},neutral:{l:'中性 FLAT',c:'var(--amber)'}};
     const sv=sm[r.sentiment]||sm.neutral;
@@ -585,7 +592,8 @@ async function genReport(){
       <div class="ecard" style="border-left-color:var(--purple);margin-bottom:12px"><div class="etag" style="color:var(--purple)">[ 向錢進評估 ] 今日清單怎麼看</div><div class="ebody">${r.friendAlerts||'—'}</div></div>
       <div style="margin-bottom:12px;padding:13px 15px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r)"><div style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:9px">WATCH KEYWORDS</div>${wH}</div>
       <div class="ibox"><div class="ilbl">AI 給你的 3 點行動建議</div><div class="ibody" style="white-space:pre-line">${r.suggestion||'—'}</div></div>
-      <div style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">⚠ Gemini 沒有實時市場數據，分析僅供參考</div>`;
+      ${sources.length ? `<div style="margin-top:12px;padding:13px 15px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r)"><div style="font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">🔍 GOOGLE SEARCH 引用來源（${sources.length}）</div>${sources.slice(0,8).map(s=>`<a href="${s.uri}" target="_blank" style="display:block;font-size:13px;color:var(--blue);text-decoration:none;padding:4px 0;border-bottom:1px solid rgba(26,37,53,0.5)">${s.title||s.uri}</a>`).join('')}</div>` : ''}
+      <div style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">✨ 使用 Google Search Grounding · 資料來自即時搜尋</div>`;
   }catch(e){
     bodyEl.innerHTML=`<div style="font-family:var(--mono);font-size:14px;color:var(--red);padding:20px 0">// ERROR: ${e.message}<br><span style="font-size:12px;color:var(--text-dim)">檢查 gemini_key 是否正確</span></div>`;
     sumEl.textContent='生成失敗，請重試';
