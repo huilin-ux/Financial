@@ -12,7 +12,32 @@
 // ========== 設定區 ==========
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
-const API_KEY = 'meow-cat-financial-2026';
+
+// Dashboard 跟 Web App 之間的通關密語。可以在 Sheet「設定」分頁加一列
+// api_key | <你自己的字串> 來覆寫；沒填就用下面的預設。
+const DEFAULT_API_KEY = 'meow-cat-financial-2026';
+
+function getApiKey_() {
+  try {
+    const v = getConfig().api_key;
+    if (v) return String(v).trim();
+  } catch(e) {}
+  return DEFAULT_API_KEY;
+}
+
+/**
+ * 取得綁定的 Sheet。預設用「擴充功能 → Apps Script」綁定的容器 Sheet。
+ * 想用其他 Sheet 的話，在 Apps Script「專案設定 → 指令碼屬性」加一個
+ *   sheet_id = <你的 Sheet ID>
+ * 即可覆寫。
+ */
+function getSheet_() {
+  const override = PropertiesService.getScriptProperties().getProperty('sheet_id');
+  if (override) return SpreadsheetApp.openById(override);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('找不到綁定的 Sheet，請從 Google Sheet 進入「擴充功能 → Apps Script」建立腳本');
+  return ss;
+}
 
 /**
  * 取得綁定的 Sheet。預設用「擴充功能 → Apps Script」綁定的容器 Sheet。
@@ -32,7 +57,7 @@ function getSheet_() {
 
 function doGet(e) {
   try {
-    if ((e.parameter || {}).key !== API_KEY) return apiResp_({ error: 'unauthorized' }, 401);
+    if ((e.parameter || {}).key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
     return apiResp_({
       holdings: getHoldings(),
       watchlist: getWatchlist(),
@@ -66,7 +91,7 @@ function doPost(e) {
     }
 
     // Dashboard cloud-sync
-    if (body.key !== API_KEY) return apiResp_({ error: 'unauthorized' }, 401);
+    if (body.key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
     if (body.holdings) writeHoldings_(body.holdings);
     if (body.watchlist) writeWatchlist_(body.watchlist);
     if (body.dca) writeDCA_(body.dca);

@@ -393,9 +393,12 @@ LINE Messaging API 免費版每月 200 則訊息。
 
 ### Q10：資料安全嗎？
 - Google Sheet 預設只有你看得到
-- Apps Script Web App URL 雖然公開，但需要 API_KEY（程式裡 `meow-cat-financial-2026`）
-- 想更嚴的話可以改 API_KEY 變成你自己的字串
-- LINE token 只存在 Sheet「設定」分頁，Google Drive 受 Google 保護
+- Apps Script Web App URL 雖然公開，但需要 API_KEY 才能讀；預設大家共用 `meow-cat-financial-2026`，但**任何人想設自己的密碼**：
+  1. Sheet「設定」分頁加一列 `api_key`｜`你自己的字串`
+  2. Dashboard 開啟一次帶 `&key=你自己的字串`，例如：
+     `https://huilin-ux.github.io/Financial/?api=<你的WebAppURL>&key=meow-secret-2026`
+  3. 之後 Dashboard 會記住，不用每次帶
+- LINE token / Gemini key 只存在 Sheet「設定」分頁，Google Drive 受 Google 保護，**完全不會出現在 GitHub 公開程式碼**
 
 ---
 
