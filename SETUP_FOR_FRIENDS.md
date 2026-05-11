@@ -229,7 +229,73 @@ owner_name	你的名字
 
 ---
 
-## STEP 6：使用 Dashboard 看板
+## STEP 6：啟動招財貓 Rich Menu（3 分鐘）
+
+讓 LINE Bot 下方常駐一個 **2×3 招財貓選單**（查持倉 / 查向錢進 / 現在損益 / 今日早報 / 新增向錢進 / 說明），不用打字。
+
+### 6-1 用 Kate 的圖（最快，5 秒搞定）
+
+Kate 的招財貓圖**已經寫在 Code.gs 裡了**，你什麼都不用改。
+
+1. 回 Apps Script 編輯器
+2. 上方函式下拉選單選 **`setupRichMenu`**
+3. 按 ▶ 執行
+4. 看「執行記錄」出現 `✅ Rich Menu 建立完成` 就 OK
+5. 打開 LINE 跟 Bot 的對話 → **關掉再重開** → 下方應該出現 6 格招財貓選單 🐱
+
+🎉 完成！點選單上任一格 Bot 會自動回應對應功能。
+
+### 6-2 想自己做圖（進階，10 分鐘）
+
+如果你想要自己風格的圖示，可以這樣做：
+
+**1) 用 Claude 設計圖**
+
+到 <https://claude.ai>，貼這段 prompt：
+
+```
+幫我設計一張 LINE Bot Rich Menu 圖，2 欄 3 列共 6 格，
+總尺寸 2500×1686 px，每格主題：
+左上：查持倉（一隻招財貓拿著手機）
+右上：查向錢進（招財貓拿著望遠鏡）
+左中：現在損益（招財貓抱著金幣）
+右中：今日早報（招財貓拿著報紙）
+左下：新增向錢進（招財貓做筆記）
+右下：說明（招財貓舉著問號牌）
+風格：可愛日系手繪、暖色背景、清楚的格線分隔
+```
+
+Claude 會給你圖，存下來（檔案需 < 1MB，JPG 或 PNG）。
+
+**2) 上傳到 catbox（免費圖床）**
+
+1. 開 <https://catbox.moe>
+2. 把圖拖進去 → 等幾秒
+3. 複製出現的網址（`https://files.catbox.moe/xxxxx.png`）
+
+**3) 改 Code.gs 的圖網址**
+
+1. 回 Apps Script，按 `Ctrl+F` 找 `RICH_MENU_IMAGE_URL`
+2. 把那一行的網址換成你的 catbox 網址：
+
+```javascript
+const RICH_MENU_IMAGE_URL = 'https://files.catbox.moe/你的圖.png';
+```
+
+3. 💾 儲存
+4. **如果圖超過 1MB 或尺寸不對**：用 images.weserv.nl 即時 resize，把網址改成：
+
+```javascript
+const RICH_MENU_IMAGE_URL = 'https://images.weserv.nl/?url=files.catbox.moe/你的圖.png&w=2500&h=1686&fit=cover&output=jpg&q=88';
+```
+
+**4) 重新跑 setupRichMenu**
+
+函式選 `setupRichMenu` → ▶ 執行 → LINE 對話關閉重開 → 看到新圖 ✅
+
+---
+
+## STEP 7：使用 Dashboard 看板
 
 ### 你的專屬一鍵連結
 
@@ -343,8 +409,9 @@ LINE Messaging API 免費版每月 200 則訊息。
 - [ ] Web App 部署完，URL 拿到手
 - [ ] LINE Channel Webhook URL 設好
 - [ ] 傳「說明」給 Bot 收到回覆
+- [ ] 跑 `setupRichMenu` LINE 下方出現招財貓選單
 - [ ] Dashboard 連結加到手機桌面
 
-10 個 ✅ 全勾完 → 你的「投資阿喵共」上線了 🎉
+11 個 ✅ 全勾完 → 你的「投資阿喵共」上線了 🎉
 
 有問題隨時找 Kate 或開 GitHub issue。
