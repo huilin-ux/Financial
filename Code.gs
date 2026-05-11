@@ -568,11 +568,16 @@ function sendLine(token, msg, userId) {
   }
 }
 
+// 最近一次 grounded 呼叫的搜尋資訊，給 sendMorningReport 等附在訊息末端
+let LAST_GROUNDING = null;
+
 /**
  * 呼叫 Google Gemini API（免費 tier），回傳純文字回覆。
  * grounded=true 會開啟 Google Search grounding，AI 會去搜當天真實資料再回答。
+ * 搜尋結果（queries + sources）會存到 LAST_GROUNDING。
  */
 function askGemini(apiKey, prompt, grounded) {
+  LAST_GROUNDING = null;
   if (!apiKey) {
     Logger.log('askGemini 未設定 API Key');
     return '';
@@ -585,7 +590,7 @@ function askGemini(apiKey, prompt, grounded) {
       generationConfig: {
         maxOutputTokens: grounded ? 4000 : 800,
         temperature: 0.8,
-        thinkingConfig: { thinkingBudget: 0 } // 關閉內部 thinking，避免吃掉輸出 token
+        thinkingConfig: { thinkingBudget: 0 }
       }
     };
     if (grounded) body.tools = [{ google_search: {} }];
@@ -602,17 +607,50 @@ function askGemini(apiKey, prompt, grounded) {
     const json = JSON.parse(res.getContentText());
     const cand = json.candidates && json.candidates[0];
     if (!cand) return '';
+    if (grounded && cand.groundingMetadata) {
+      LAST_GROUNDING = {
+        queries: cand.groundingMetadata.webSearchQueries || [],
+        sources: (cand.groundingMetadata.groundingChunks || [])
+          .map(c => c.web).filter(Boolean)
+      };
+    }
     if (cand.finishReason && cand.finishReason !== 'STOP') {
       Logger.log('askGemini finishReason=' + cand.finishReason);
     }
     if (!cand.content || !cand.content.parts) return '';
     const text = cand.content.parts.map(p => p.text || '').join('').trim();
-    Logger.log('askGemini output length: ' + text.length + ' chars');
+    Logger.log('askGemini output length: ' + text.length + ' chars'
+      + (LAST_GROUNDING ? `, queries=${LAST_GROUNDING.queries.length}, sources=${LAST_GROUNDING.sources.length}` : ''));
     return text;
   } catch (err) {
     Logger.log('askGemini 例外：' + err.message);
     return '';
   }
+}
+
+/**
+ * 把最近一次 grounded 呼叫的搜尋來源排成 LINE 友善的字串
+ */
+function formatGroundingFooter_() {
+  if (!LAST_GROUNDING) return '';
+  const { queries, sources } = LAST_GROUNDING;
+  const lines = [];
+  lines.push('');
+  lines.push('─────');
+  lines.push('🔍 Gemini 用 Google 搜了：');
+  (queries.length ? queries : ['（無搜尋記錄）']).slice(0, 5).forEach(q => lines.push('・' + q));
+  if (sources.length) {
+    lines.push('');
+    lines.push('📰 引用來源（' + sources.length + ' 筆）：');
+    sources.slice(0, 5).forEach(s => {
+      const title = (s.title || '').slice(0, 40);
+      lines.push('・' + (title || s.uri));
+    });
+  }
+  const ts = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+  lines.push('');
+  lines.push('⏱ 抓取時間：' + ts);
+  return lines.join('\n');
 }
 
 // ========== 防重複通知 ==========
@@ -745,7 +783,8 @@ ${watchLines}
 - 字數含換行 ≤ 250 字`;
 
     const msg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
-    sendLine(cfg.line_token, msg, cfg.line_user_id);
+    const full = msg + formatGroundingFooter_();
+    sendLine(cfg.line_token, full, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
