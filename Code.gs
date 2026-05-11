@@ -79,8 +79,8 @@ function handleLineWebhook_(body) {
 function executeIntent_(text, cfg) {
   // 快速關鍵字匹配
   const lower = text.toLowerCase();
-  if (/^(說明|help|推播時機|時機|功能|menu)$/i.test(text)) return helpText_();
-  if (/^(查持倉|持倉|我的持倉)$/i.test(text)) return listHoldings_();
+  if (/^(說明|使用說明|help|推播時機|時機|功能|menu)$/i.test(text)) return helpText_();
+  if (/^(查持倉|查詢持倉|持倉|我的持倉)$/i.test(text)) return listHoldings_();
   if (/^(查向錢進|向錢進|清單|追蹤)$/i.test(text)) return listWatchlist_();
   if (/^(現在損益|損益|我的損益|現況)$/i.test(text)) return currentPnl_();
   if (/^(今日早報|早報|生成早報)$/i.test(text)) {
@@ -271,13 +271,14 @@ function replyLine_(token, replyToken, text) {
 }
 
 // 每次 Bot 回訊息都會在下方顯示這排快速按鈕
+// imageUrl 會等 Kate 提供 Imgur 圖示後補上
 const QUICK_REPLY_MENU_ = [
-  { type: 'action', action: { type: 'message', label: '📊 查持倉', text: '查持倉' } },
-  { type: 'action', action: { type: 'message', label: '🎯 查向錢進', text: '查向錢進' } },
-  { type: 'action', action: { type: 'message', label: '📈 現在損益', text: '現在損益' } },
-  { type: 'action', action: { type: 'message', label: '☀️ 今日早報', text: '今日早報' } },
-  { type: 'action', action: { type: 'message', label: '📅 推播時機', text: '推播時機' } },
-  { type: 'action', action: { type: 'message', label: '❓ 說明', text: '說明' } }
+  { type: 'action', action: { type: 'message', label: '查詢持倉', text: '查詢持倉' } },
+  { type: 'action', action: { type: 'message', label: '查向錢進', text: '查向錢進' } },
+  { type: 'action', action: { type: 'message', label: '現在損益', text: '現在損益' } },
+  { type: 'action', action: { type: 'message', label: '今日早報', text: '今日早報' } },
+  { type: 'action', action: { type: 'message', label: '推播時機', text: '推播時機' } },
+  { type: 'action', action: { type: 'message', label: '使用說明', text: '使用說明' } }
 ];
 
 function apiResp_(obj) {
