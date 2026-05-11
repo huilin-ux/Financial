@@ -298,28 +298,43 @@ const RICH_MENU_IMAGE_URL = 'https://images.weserv.nl/?url=files.catbox.moe/你�
 
 ## STEP 7：使用 Dashboard 看板
 
-### 你的專屬一鍵連結
+### 7-1 開啟看板
+
+用手機 Safari 開這個網址：
 
 ```
-https://huilin-ux.github.io/Financial/?api=【你的 Web App URL】
+https://huilin-ux.github.io/Financial/
 ```
 
-把 `【你的 Web App URL】` 換成 Step 4-5 那串，例如：
+第一次開會自動跳出**設定畫面**：
 
 ```
-https://huilin-ux.github.io/Financial/?api=https://script.google.com/macros/s/AKfycbz.../exec
+🐱
+歡迎！先連接你的資料
+
+WEB APP 網址
+[貼上 Step 4-5 的網址___________________]
+
+API 密碼（選填）
+[meow-cat-financial-2026（預設）________]
+
+         [ 連接 → ]
 ```
 
-### 加桌面 icon
+1. **WEB APP 網址** 貼上 Step 4-5 拿到的 `https://script.google.com/macros/s/.../exec`
+2. **API 密碼** 不用動（預設就好），除非你有設自己的密碼
+3. 按 **連接 →**
+4. 看到「✓ 連接成功！」就進看板了
 
-1. 手機 Safari 開上面那條長連結
-2. 等載入完（設定頁應該顯示 🟢 已連動 Google Sheet）
-3. 下方 **分享 ⬆️ → 加入主畫面** → 命名「投資阿喵嘎哩共」
-4. 桌面就有 icon 可以直接點開
+### 7-2 加桌面 icon
+
+1. 等看板載入完（設定頁應該顯示 🟢 已連動 Google Sheet）
+2. 下方 **分享 ⬆️ → 加入主畫面** → 命名「投資阿喵嘎哩共」
+3. 桌面就有 icon 可以直接點開
 
 ### 換新裝置
 
-開那條**長連結**（含 `?api=`），系統自動記住，之後開 icon 就可以。
+新裝置上重開 `https://huilin-ux.github.io/Financial/` → 再輸入一次 URL + 密碼 → 之後 icon 直接用。
 
 ---
 
@@ -393,12 +408,10 @@ LINE Messaging API 免費版每月 200 則訊息。
 
 ### Q10：資料安全嗎？
 - Google Sheet 預設只有你看得到
-- Apps Script Web App URL 雖然公開，但需要 API_KEY 才能讀；預設大家共用 `meow-cat-financial-2026`，但**任何人想設自己的密碼**：
-  1. Sheet「設定」分頁加一列 `api_key`｜`你自己的字串`
-  2. Dashboard 開啟一次帶 `&key=你自己的字串`，例如：
-     `https://huilin-ux.github.io/Financial/?api=<你的WebAppURL>&key=meow-secret-2026`
-  3. 之後 Dashboard 會記住，不用每次帶
-- LINE token / Gemini key 只存在 Sheet「設定」分頁，Google Drive 受 Google 保護，**完全不會出現在 GitHub 公開程式碼**
+- Apps Script Web App URL 雖然公開，但需要密碼才能讀；預設是 `meow-cat-financial-2026`，想換自己的密碼：
+  1. Sheet「設定」分頁加一列：`api_key`｜`你自己的字串`
+  2. 開 Dashboard → 設定頁 → 重新「儲存並測試」，或在設定畫面輸入你的新密碼
+- LINE token / Gemini key 只存在 Sheet「設定」分頁，**完全不會出現在 GitHub 公開程式碼**
 
 ---
 
@@ -414,7 +427,7 @@ LINE Messaging API 免費版每月 200 則訊息。
 - [ ] LINE Channel Webhook URL 設好
 - [ ] 傳「說明」給 Bot 收到回覆
 - [ ] 跑 `setupRichMenu` LINE 下方出現招財貓選單
-- [ ] Dashboard 連結加到手機桌面
+- [ ] Dashboard 開啟 → 輸入 WebApp URL → 連接成功 → 加到手機桌面
 
 11 個 ✅ 全勾完 → 你的「投資阿喵共」上線了 🎉
 
