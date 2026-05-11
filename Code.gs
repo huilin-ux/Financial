@@ -1009,6 +1009,130 @@ function testAll() {
   Logger.log('[4/4] LINE 發送 ' + (ok ? '成功' : '失敗'));
 }
 
+// ========== LINE Rich Menu ==========
+
+/**
+ * 一次設定 Rich Menu：建立 / 上傳圖片 / 設為全使用者預設。
+ * 改下面的 RICH_MENU_IMAGE_URL 為你 catbox 上的圖網址，然後執行這個函式一次即可。
+ */
+const RICH_MENU_IMAGE_URL = 'https://files.catbox.moe/CHANGE_ME.png';
+
+function setupRichMenu() {
+  const cfg = getConfig();
+  const token = String(cfg.line_token || '').replace(/\s+/g, '');
+  if (!token) { Logger.log('❌ 未設定 line_token'); return; }
+  if (RICH_MENU_IMAGE_URL.indexOf('CHANGE_ME') >= 0) {
+    Logger.log('❌ 請先把 RICH_MENU_IMAGE_URL 改成你的圖網址');
+    return;
+  }
+
+  // 1. 刪除舊的 rich menu
+  try {
+    const listRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/list', {
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+    if (listRes.getResponseCode() === 200) {
+      const list = JSON.parse(listRes.getContentText()).richmenus || [];
+      list.forEach(m => {
+        UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/' + m.richMenuId, {
+          method: 'delete',
+          headers: { Authorization: 'Bearer ' + token },
+          muteHttpExceptions: true
+        });
+      });
+      Logger.log('清掉舊 richmenu ' + list.length + ' 個');
+    }
+  } catch (e) { Logger.log('清舊 menu 失敗：' + e.message); }
+
+  // 2. 建立新 rich menu（2 列 × 3 行，6 個按鈕）
+  const menuDef = {
+    size: { width: 2500, height: 1686 },
+    selected: true,
+    name: '投資阿喵嘎哩共主選單',
+    chatBarText: '📋 選單',
+    areas: [
+      { bounds: { x: 0,    y: 0,    width: 833, height: 843 }, action: { type: 'message', text: '查詢持倉' } },
+      { bounds: { x: 833,  y: 0,    width: 834, height: 843 }, action: { type: 'message', text: '查向錢進' } },
+      { bounds: { x: 1667, y: 0,    width: 833, height: 843 }, action: { type: 'message', text: '現在損益' } },
+      { bounds: { x: 0,    y: 843,  width: 833, height: 843 }, action: { type: 'message', text: '今日早報' } },
+      { bounds: { x: 833,  y: 843,  width: 834, height: 843 }, action: { type: 'message', text: '推播時機' } },
+      { bounds: { x: 1667, y: 843,  width: 833, height: 843 }, action: { type: 'message', text: '使用說明' } }
+    ]
+  };
+
+  const createRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: JSON.stringify(menuDef),
+    muteHttpExceptions: true
+  });
+  if (createRes.getResponseCode() !== 200) {
+    Logger.log('❌ 建立 richmenu 失敗: ' + createRes.getContentText());
+    return;
+  }
+  const richMenuId = JSON.parse(createRes.getContentText()).richMenuId;
+  Logger.log('✅ 建立 richmenu: ' + richMenuId);
+
+  // 3. 下載圖片
+  const imgRes = UrlFetchApp.fetch(RICH_MENU_IMAGE_URL, { muteHttpExceptions: true });
+  if (imgRes.getResponseCode() !== 200) {
+    Logger.log('❌ 下載圖片失敗: HTTP ' + imgRes.getResponseCode());
+    return;
+  }
+  const imageBytes = imgRes.getContent();
+  const isJpeg = /\.(jpe?g)$/i.test(RICH_MENU_IMAGE_URL);
+  Logger.log('圖片下載成功，' + imageBytes.length + ' bytes');
+
+  // 4. 上傳圖片到 LINE
+  const uploadRes = UrlFetchApp.fetch('https://api-data.line.me/v2/bot/richmenu/' + richMenuId + '/content', {
+    method: 'post',
+    contentType: isJpeg ? 'image/jpeg' : 'image/png',
+    headers: { Authorization: 'Bearer ' + token },
+    payload: imageBytes,
+    muteHttpExceptions: true
+  });
+  if (uploadRes.getResponseCode() !== 200) {
+    Logger.log('❌ 上傳圖片失敗: ' + uploadRes.getContentText());
+    return;
+  }
+  Logger.log('✅ 上傳圖片成功');
+
+  // 5. 設為全使用者預設
+  const defaultRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/user/all/richmenu/' + richMenuId, {
+    method: 'post',
+    headers: { Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true
+  });
+  if (defaultRes.getResponseCode() === 200) {
+    Logger.log('🎉 Rich Menu 設定完成！打開 LINE 應該看到底部選單');
+  } else {
+    Logger.log('❌ 設為預設失敗: ' + defaultRes.getContentText());
+  }
+}
+
+/**
+ * 移除所有 Rich Menu（如果想關閉的話）
+ */
+function removeRichMenu() {
+  const cfg = getConfig();
+  const token = String(cfg.line_token || '').replace(/\s+/g, '');
+  const listRes = UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/list', {
+    headers: { Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true
+  });
+  const list = JSON.parse(listRes.getContentText()).richmenus || [];
+  list.forEach(m => {
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/richmenu/' + m.richMenuId, {
+      method: 'delete',
+      headers: { Authorization: 'Bearer ' + token },
+      muteHttpExceptions: true
+    });
+  });
+  Logger.log('已刪除 ' + list.length + ' 個 Rich Menu');
+}
+
 /**
  * 強制測試向錢進推播：忽略交易時間和門檻檢查，
  * 把每一筆 watching/holding 都當作到價推一次，
