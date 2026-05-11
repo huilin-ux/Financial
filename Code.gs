@@ -629,7 +629,8 @@ function askGemini(apiKey, prompt, grounded) {
 }
 
 /**
- * 把最近一次 grounded 呼叫的搜尋來源排成 LINE 友善的字串
+ * 把最近一次 grounded 呼叫的搜尋來源排成 LINE 友善的字串。
+ * 包含真正的引用 URL（點下去會跳到實際文章，不是網站首頁）。
  */
 function formatGroundingFooter_() {
   if (!LAST_GROUNDING) return '';
@@ -641,10 +642,11 @@ function formatGroundingFooter_() {
   (queries.length ? queries : ['（無搜尋記錄）']).slice(0, 5).forEach(q => lines.push('・' + q));
   if (sources.length) {
     lines.push('');
-    lines.push('📰 引用來源（' + sources.length + ' 筆）：');
-    sources.slice(0, 5).forEach(s => {
-      const title = (s.title || '').slice(0, 40);
-      lines.push('・' + (title || s.uri));
+    lines.push('📰 引用來源（點 URL 看原文）：');
+    sources.slice(0, 4).forEach(s => {
+      const title = (s.title || '網頁').slice(0, 30);
+      lines.push('・' + title);
+      if (s.uri) lines.push('  ' + s.uri);
     });
   }
   const ts = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
