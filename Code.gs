@@ -354,13 +354,15 @@ function getHoldings() {
     for (let i = 1; i < data.length; i++) {
       const [tk, nm, shares, cost, buyAlert, sellAlert] = data[i];
       if (!tk) continue;
+      const stock_tk = String(tk).trim();
       rows.push({
-        stock_tk: String(tk).trim(),
+        stock_tk: stock_tk,
         stock_nm: String(nm || '').trim(),
         shares: Number(shares) || 0,
         cost: Number(cost) || 0,
         buy_alert: Number(buyAlert) || 0,
-        sell_alert: Number(sellAlert) || 0
+        sell_alert: Number(sellAlert) || 0,
+        price: getPrice(stock_tk) || 0
       });
     }
     return rows;
@@ -391,7 +393,8 @@ function getWatchlist() {
         take_profit: Number(tp) || 0,
         stop_loss: Number(sl) || 0,
         source: String(source || '').trim(),
-        status: st || 'watching'
+        status: st || 'watching',
+        price: getPrice(String(tk).trim()) || 0
       });
     }
     return rows;

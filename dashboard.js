@@ -70,8 +70,8 @@ async function saveToCloud() {
 }
 
 function cloudToLocal_(data) {
-  const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
-  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,src:r.source,note:'',status:r.status,p:r.buy_price+(r.take_profit-r.buy_price)*0.3}));
+  const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:Number(r.price)||r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
+  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,src:r.source,note:'',status:r.status,p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
   const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,pending:!r.active}));
   const cfg = data.config || {};
