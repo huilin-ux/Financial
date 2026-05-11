@@ -436,81 +436,83 @@ function sendMorningReport() {
     const owner = cfg.owner_name || '朋友';
     const holdings = getHoldings();
     const watchlist = getWatchlist();
+    const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy年M月d日 EEEE');
 
-    let totalCost = 0;
-    let totalValue = 0;
-    const holdingLines = [];
-    holdings.forEach(h => {
-      const price = getPrice(h.stock_tk);
-      if (price == null) {
-        holdingLines.push(`${h.stock_nm}(${h.stock_tk})：抓價失敗`);
-        return;
-      }
+    // 1. 算每支持倉的當天損益
+    let totalCost = 0, totalValue = 0;
+    const holdingLines = holdings.map(h => {
+      const price = getPrice(h.stock_tk) || h.cost;
       const cost = h.cost * h.shares;
       const value = price * h.shares;
-      const pl = value - cost;
-      const plPct = cost > 0 ? pl / cost : 0;
       totalCost += cost;
       totalValue += value;
-      holdingLines.push(
-        `${h.stock_nm}(${h.stock_tk}) 現價 ${price}，未實現損益 ${pl.toFixed(0)}（${fmtPct_(plPct)}）`
-      );
-    });
-    const totalPL = totalValue - totalCost;
-    const totalPct = totalCost > 0 ? totalPL / totalCost : 0;
+      const pnl = value - cost;
+      const pnlPct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
+      return `- ${h.stock_nm}(${h.stock_tk}) 現價 ${price}, 成本 ${h.cost}, 損益 ${pnl.toFixed(0)} (${pnlPct}%)`;
+    }).join('\n') || '（無持倉）';
+    const totalPnl = totalValue - totalCost;
 
-    const watchAlerts = [];
-    watchlist.forEach(w => {
-      const price = getPrice(w.stock_tk);
-      if (price == null) return;
-      if (w.status === 'watching' && w.buy_price > 0) {
-        const diff = Math.abs(price - w.buy_price) / w.buy_price;
-        if (diff <= 0.05) {
-          watchAlerts.push(`${w.stock_nm}(${w.stock_tk}) 接近買入價 ${w.buy_price}（現價 ${price}）`);
-        }
+    // 2. 算向錢進距離
+    const watchLines = watchlist.map(w => {
+      const price = getPrice(w.stock_tk) || w.buy_price;
+      const isHolding = w.status === 'holding';
+      if (isHolding && w.take_profit) {
+        const dist = ((w.take_profit - price) / price * 100).toFixed(1);
+        return `- ${w.stock_nm}(${w.stock_tk}) [持有中] 現價 ${price}, 距停利 ${w.take_profit} 還差 ${dist}%`;
+      } else {
+        // watching: 現價距買入價的 %
+        const dist = ((price - w.buy_price) / w.buy_price * 100).toFixed(1);
+        const status = parseFloat(dist) > 3 ? '🟡 等待' : parseFloat(dist) > -3 ? '🟢 接近' : '🔴 已達標';
+        return `- ${w.stock_nm}(${w.stock_tk}) [追蹤中] 現價 ${price}, 買入價 ${w.buy_price} (距離 ${dist}%) ${status} | 來源:${w.source}`;
       }
-      if (w.status === 'holding' && w.take_profit > 0) {
-        const diff = Math.abs(price - w.take_profit) / w.take_profit;
-        if (diff <= 0.05) {
-          watchAlerts.push(`${w.stock_nm}(${w.stock_tk}) 接近停利價 ${w.take_profit}（現價 ${price}）`);
-        }
-      }
-    });
+    }).join('\n') || '（無向錢進清單）';
 
+    // 3. 組 prompt
     const prompt =
-`你是 ${owner} 的投資小助手。今天請主動搜尋以下資訊：
-1. 昨日美股 S&P500、Nasdaq、費城半導體指數收盤
-2. 今天台股加權指數開盤狀況
-3. USD/TWD 匯率
-4. 任何影響台股的重大新聞（Fed 政策、地緣政治、半導體產業）
+`今天是 ${today}。請先用 Google Search 搜尋這些實時資料：
+1. 昨日美股 S&P500 / Nasdaq / 費城半導體指數收盤漲跌幅
+2. 今日 USD/TWD 匯率
+3. 昨日台股外資買超/賣超金額（億元）
+4. 今日對台股有影響的重大新聞（Fed / 半導體 / 地緣政治）
 
-然後產出一封給 ${owner} 的個人化早報。
+【${owner} 的持倉（含現價）】
+${holdingLines}
 
-【${owner} 的持倉】
-總成本：${totalCost.toFixed(0)}
-總市值：${totalValue.toFixed(0)}
-總未實現損益：${totalPL.toFixed(0)}（${fmtPct_(totalPct)}）
-${holdingLines.join('\n') || '（無持倉）'}
+【向錢進清單（已算好距離 %）】
+${watchLines}
 
-【向錢進到價狀況】
-${watchAlerts.length ? watchAlerts.join('\n') : '無接近價位的標的'}
+【總未實現損益】${totalPnl.toFixed(0)} 元
 
-請用繁體中文寫一段 **200-280 字** LINE 早報，格式：
+請嚴格按照下面格式產出（**不要用 markdown 粗體 ** 符號，用全形分隔，整體 250 字以內**）：
+
+☀️ 投資阿喵共・今日早報
 🌅 早安 ${owner}！
-[一句話總結今日國際盤勢 + 真實數據]
 
-📊 你的持倉：
-[結合搜到的資訊，分析持倉今天可能受什麼影響，賺錢誇獎、虧損安慰]
+【市場概況】
+・美股 S&P500：+x.xx%（一句話對台股影響）
+・費城半導體：+x.xx%（一句話對科技持倉影響）
+・台幣匯率：xx.x（升/貶，對出口股影響）
+・外資：買超/賣超 xx 億（市場情緒）
 
-🎯 今日重點：
-[1-2 個你搜到的關鍵新聞或資料，跟她有沒有關聯]
+【你的持倉今天】
+（每支持倉一行，結合搜到的產業新聞給具體影響，不要說廢話，結尾加 👍 或 ⚠️）
 
-💡 [一句正能量祝福]
+【向錢進狀態】
+（每支一行，直接用我給你的距離 %，標 🟡等待 / 🟢接近 / 🔴達標）
 
-語氣溫暖可愛、適當 emoji、不要列舉太多，重點是把搜到的真實資料融入分析。`;
+【今天只需要做一件事】
+→ 一句話具體行動，30 字以內
+
+💪 一句鼓勵的話，根據總損益 ${totalPnl.toFixed(0)} 元調整語氣（賺錢稱讚眼光、虧損溫柔安慰）
+
+注意：
+- 數字必須來自 Google Search 結果，不要瞎掰
+- 持倉分析要扣到當天搜到的新聞，例如「費城半導體大漲→台積電可能跟漲」
+- 不要 markdown 粗體（LINE 不支援）
+- 字數含換行 ≤ 250 字`;
 
     const msg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
-    sendLine(cfg.line_token, '☀️ 投資阿喵共・今日早報\n' + msg, cfg.line_user_id);
+    sendLine(cfg.line_token, msg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
