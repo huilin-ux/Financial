@@ -676,8 +676,50 @@ const HINTS={
   trades:{icon:'📝',title:'交易記錄',body:`重點不在賺多少，在於回顧決策品質。記錄消息來源，幾個月後數據說話。`},
   aireport:{icon:'🤖',title:'AI 日報',body:`針對你的持倉做個人化分析。AI 僅供參考，最終決策還是你自己。`}
 };
-function showHint(key){const h=HINTS[key];if(!h)return;document.getElementById('hintIcon').textContent=h.icon;document.getElementById('hintTitle').textContent=h.title;document.getElementById('hintBody').innerHTML=h.body;document.getElementById('hintOverlay').style.display='flex';document.body.style.overflow='hidden';}
-function closeHint(e){if(e&&e.target!==document.getElementById('hintOverlay'))return;document.getElementById('hintOverlay').style.display='none';document.body.style.overflow='';}
+let _hintCurrentBtn=null;
+function showHint(key,ev){
+  const h=HINTS[key];if(!h)return;
+  if(ev){ev.stopPropagation();}
+  const pop=document.getElementById('hintPop');
+  document.getElementById('hintPopIcon').textContent=h.icon;
+  document.getElementById('hintPopTitle').textContent=h.title;
+  document.getElementById('hintPopBody').innerHTML=h.body;
+  const btn=ev&&ev.target;
+  if(btn===_hintCurrentBtn&&pop.classList.contains('open')){closeHint();return;}
+  _hintCurrentBtn=btn;
+  pop.classList.add('open');
+  if(btn){
+    const r=btn.getBoundingClientRect();
+    const popW=Math.min(280,window.innerWidth-24);
+    pop.style.width=popW+'px';
+    let left=r.left+window.scrollX+(r.width/2)-(popW/2);
+    if(left<12)left=12;
+    if(left+popW>window.innerWidth-12)left=window.innerWidth-popW-12;
+    const top=r.bottom+window.scrollY+10;
+    pop.style.left=left+'px';
+    pop.style.top=top+'px';
+    const arrow=document.getElementById('hintPopArrow');
+    if(arrow){
+      const arrowLeft=r.left+window.scrollX+(r.width/2)-left-6;
+      arrow.style.left=Math.max(12,Math.min(popW-18,arrowLeft))+'px';
+    }
+  }
+  setTimeout(()=>document.addEventListener('click',_hintOutsideClose,{once:true}),0);
+}
+function _hintOutsideClose(e){
+  const pop=document.getElementById('hintPop');
+  if(pop.contains(e.target)||(e.target.classList&&e.target.classList.contains('hint-btn'))){
+    document.addEventListener('click',_hintOutsideClose,{once:true});
+    return;
+  }
+  closeHint();
+}
+function closeHint(){
+  const pop=document.getElementById('hintPop');
+  if(pop)pop.classList.remove('open');
+  _hintCurrentBtn=null;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeHint();});
 
 // ========== SOURCES ==========
 function loadSources(){try{return JSON.parse(localStorage.getItem('invest_os_sources')||'null');}catch(e){return null;}}
@@ -830,7 +872,9 @@ function setCloudStatus(msg){
 function updateLastSync_(){
   const now=new Date();
   const el=document.getElementById('lastUpdateStat');
-  if(el) el.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  if(!el) return;
+  const z=v=>String(v).padStart(2,'0');
+  el.textContent=`${z(now.getMonth()+1)}/${z(now.getDate())} ${z(now.getHours())}:${z(now.getMinutes())}`;
 }
 
 async function manualSync(){

@@ -229,23 +229,22 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .hcard-bar-track{height:4px;background:rgba(255,255,255,0.07);border-radius:3px;position:relative}
 .hcard-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;transition:width 0.6s ease}
 .hcard-bar-dot{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);border:2px solid #050608;transition:left 0.6s ease}
-.hint-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text-dim);font-size:11px;font-weight:700;cursor:pointer;margin-left:6px;flex-shrink:0;transition:all 0.15s;line-height:1;vertical-align:middle}
+.hint-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text-dim);font-size:11px;font-weight:700;cursor:pointer;margin-left:6px;flex-shrink:0;transition:all 0.15s;line-height:1;vertical-align:middle;position:relative}
 .hint-btn:hover{background:rgba(255,184,50,0.15);border-color:var(--amber);color:var(--amber)}
-.hint-overlay{position:fixed;inset:0;z-index:400;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,8,15,0.7);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}
-.hint-sheet{background:#111827;border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:24px 20px 36px;border-top:1px solid rgba(255,255,255,0.08);animation:sheetup 0.22s cubic-bezier(0.32,0.72,0,1)}
-@keyframes sheetup{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}
-.hint-handle{width:36px;height:4px;background:rgba(255,255,255,0.15);border-radius:2px;margin:0 auto 20px}
-.hint-icon{font-size:28px;margin-bottom:10px}
-.hint-title{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text-primary);margin-bottom:12px;letter-spacing:0.5px}
-.hint-body{font-size:15px;color:var(--text-secondary);line-height:1.8}
-.hint-body strong{color:var(--text-primary)}
-.hint-body .hint-tag{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:4px;margin:2px 2px;vertical-align:middle}
+.phead .hint-btn{margin-right:auto}
+.hint-pop{position:absolute;z-index:300;background:#111827;border:1px solid rgba(255,184,50,0.25);border-radius:10px;padding:14px 16px;width:280px;max-width:calc(100vw - 24px);box-shadow:0 8px 24px rgba(0,0,0,0.5);display:none}
+.hint-pop.open{display:block;animation:popfade 0.15s ease}
+@keyframes popfade{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.hint-pop-arrow{position:absolute;top:-7px;width:12px;height:12px;background:#111827;border-left:1px solid rgba(255,184,50,0.25);border-top:1px solid rgba(255,184,50,0.25);transform:rotate(45deg)}
+.hint-pop-icon{font-size:22px;margin-bottom:6px;line-height:1}
+.hint-pop-title{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:8px;letter-spacing:0.5px}
+.hint-pop-body{font-size:13px;color:var(--text-secondary);line-height:1.7}
+.hint-pop-body strong{color:var(--text-primary)}
+.hint-tag{display:inline-block;font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:4px;margin:2px 2px;vertical-align:middle}
 .hint-tag-g{background:rgba(0,200,150,0.15);color:var(--green)}
 .hint-tag-r{background:rgba(255,69,96,0.15);color:var(--red)}
 .hint-tag-a{background:rgba(255,184,50,0.15);color:var(--amber)}
 .hint-tag-b{background:rgba(58,123,213,0.15);color:#6ea3f7}
-.hint-close{margin-top:20px;width:100%;padding:13px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:var(--text-secondary);font-family:var(--mono);font-size:14px;cursor:pointer}
-.hint-close:hover{background:rgba(255,255,255,0.10)}
 .ob-step-title{font-family:var(--mono);font-size:17px;font-weight:700;color:var(--amber);margin-bottom:6px}
 .ob-step-desc{font-size:14px;color:var(--text-secondary);line-height:1.65}
 .ob-holding-row{display:grid;grid-template-columns:80px 1fr 80px 80px 80px auto;gap:6px;align-items:center;padding:8px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px}
@@ -320,16 +319,16 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div class="stat" data-g="D"><div class="slbl">上次更新</div><div class="sval am" id="lastUpdateStat" style="font-size:18px">—</div><div class="sdelta" style="color:var(--text-dim)">最後雲端同步</div></div>
   </div>
   <div class="panel" style="margin-bottom:10px" id="allocPanel">
-    <div class="phead"><div class="plabel">資產配置狀態</div><button class="hint-btn" onclick="showHint('alloc')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-left:auto">核心-衛星策略</span></div>
+    <div class="phead"><div class="plabel">資產配置狀態</div><button class="hint-btn" onclick="showHint('alloc', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-left:auto">核心-衛星策略</span></div>
     <div id="allocChartWrap" style="padding:12px 16px 4px"></div>
     <div class="pbody" id="allocBody"></div>
   </div>
   <div class="panel">
-    <div class="phead"><div class="plabel">持倉明細</div><button class="hint-btn" onclick="showHint('holdings')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">4 POSITIONS</span></div>
+    <div class="phead"><div class="plabel">持倉明細</div><button class="hint-btn" onclick="showHint('holdings', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">4 POSITIONS</span></div>
     <div id="hbody" style="display:flex;flex-direction:column;gap:0"></div>
   </div>
   <div class="panel">
-    <div class="phead"><div class="plabel">今日觸發提醒</div><button class="hint-btn" onclick="showHint('alerts-today')" title="說明">?</button></div>
+    <div class="phead"><div class="plabel">今日觸發提醒</div><button class="hint-btn" onclick="showHint('alerts-today', event)" title="說明">?</button></div>
     <div class="pbody" id="tbody"></div>
   </div>
 </div>
@@ -339,17 +338,17 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div class="stat" data-g="▼"><div class="slbl">若最大倉位跌20%</div><div class="sval dn" id="dd20">—</div><div class="sdelta" style="color:var(--text-dim)">總資產影響</div></div>
   </div>
   <div class="panel">
-    <div class="phead"><div class="plabel">持倉集中度</div><button class="hint-btn" onclick="showHint('concentration')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">CONCENTRATION RISK</span></div>
+    <div class="phead"><div class="plabel">持倉集中度</div><button class="hint-btn" onclick="showHint('concentration', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">CONCENTRATION RISK</span></div>
     <div class="pbody"><div class="donut-wrap"><svg width="130" height="130" viewBox="0 0 130 130" id="donutSvg"></svg><div class="donut-legend" id="donutLeg"></div></div><div id="concWarns" style="margin-top:12px"></div></div>
   </div>
-  <div class="panel"><div class="phead"><div class="plabel">壓力測試</div><button class="hint-btn" onclick="showHint('stress')" title="說明">?</button></div><div class="pbody"><div class="risk-gauge" id="stressGauge"></div></div></div>
+  <div class="panel"><div class="phead"><div class="plabel">壓力測試</div><button class="hint-btn" onclick="showHint('stress', event)" title="說明">?</button></div><div class="pbody"><div class="risk-gauge" id="stressGauge"></div></div></div>
   <div class="panel">
-    <div class="phead"><div class="plabel">停損價參考</div><button class="hint-btn" onclick="showHint('stoploss')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:rgba(255,69,96,0.6)">STOP LOSS ≠ 向錢進賣出價</span></div>
+    <div class="phead"><div class="plabel">停損價參考</div><button class="hint-btn" onclick="showHint('stoploss', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:rgba(255,69,96,0.6)">STOP LOSS ≠ 向錢進賣出價</span></div>
     <div class="pbody"><div style="font-size:16px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">停損是<strong style="color:var(--red)">保護本金</strong>用的，跟向錢進的「漲到多少賣」完全不同概念。建議每筆持倉設定<strong style="color:var(--text-primary)">最大可接受虧損</strong>（通常成本的 -8% 到 -15%）。</div>
     <table class="ht"><thead><tr><th>股票</th><th>成本</th><th>停損 -10%</th><th>停損 -15%</th><th>現價距停損</th></tr></thead><tbody id="slBody"></tbody></table></div>
   </div>
   <div class="panel">
-    <div class="phead"><div class="plabel">倉位大小建議</div><button class="hint-btn" onclick="showHint('sizing')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">POSITION SIZING</span></div>
+    <div class="phead"><div class="plabel">倉位大小建議</div><button class="hint-btn" onclick="showHint('sizing', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">POSITION SIZING</span></div>
     <div class="pbody"><div style="font-size:16px;color:var(--text-secondary);line-height:1.8;margin-bottom:14px">專業建議：<strong style="color:var(--text-primary)">單筆交易最大虧損不超過總資產的 2%</strong>。根據停損點反推每次最多買幾股。</div><div id="sizeTable"></div></div>
   </div>
 </div>
@@ -389,15 +388,15 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     </div>
   </div>
   <div id="dcaStockPanels"></div>
-  <div class="panel" id="dcaStrategyPanel"><div class="phead"><div class="plabel">定期定額策略說明</div><button class="hint-btn" onclick="showHint('dca')" title="說明">?</button></div><div class="pbody" id="dcaStrategyBody"></div></div>
+  <div class="panel" id="dcaStrategyPanel"><div class="phead"><div class="plabel">定期定額策略說明</div><button class="hint-btn" onclick="showHint('dca', event)" title="說明">?</button></div><div class="pbody" id="dcaStrategyBody"></div></div>
 </div>
 <div id="tab-log" class="section">
   <div class="g2" style="margin-bottom:12px">
     <div class="stat" data-g="W"><div class="slbl">交易勝率</div><div class="sval up" id="totalWR">—</div><div class="sdelta" style="color:var(--text-dim)">已結算交易</div></div>
     <div class="stat" data-g="$"><div class="slbl">已實現損益</div><div class="sval" id="totalRPnl">—</div><div class="sdelta" style="color:var(--text-dim)">歷史累計</div></div>
   </div>
-  <div class="panel"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate')" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
-  <div class="panel"><div class="phead"><div class="plabel">交易記錄</div><button class="hint-btn" onclick="showHint('trades')" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
+  <div class="panel"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
+  <div class="panel"><div class="phead"><div class="plabel">交易記錄</div><button class="hint-btn" onclick="showHint('trades', event)" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
 </div>
 <div id="tab-alerts" class="section">
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
@@ -538,8 +537,11 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div class="ob-step"><div class="ob-step-title">③ 完成</div><div class="ob-step-desc">向錢進、交易記錄、定期定額可以之後再慢慢填入。</div><button onclick="obFinish()" class="btn btn-p" style="width:100%;margin-top:16px;padding:16px;font-size:16px">開始使用 →</button><button onclick="obSkip()" style="width:100%;margin-top:8px;padding:12px;background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:13px;cursor:pointer">先跳過，使用範例資料</button></div>
   </div>
 </div>
-<div id="hintOverlay" style="display:none" class="hint-overlay" onclick="closeHint(event)">
-  <div class="hint-sheet" id="hintSheet"><div class="hint-handle"></div><div class="hint-icon" id="hintIcon">💡</div><div class="hint-title" id="hintTitle">說明</div><div class="hint-body" id="hintBody"></div><button class="hint-close" onclick="closeHint()">關閉</button></div>
+<div id="hintPop" class="hint-pop">
+  <div class="hint-pop-arrow" id="hintPopArrow"></div>
+  <div class="hint-pop-icon" id="hintPopIcon"></div>
+  <div class="hint-pop-title" id="hintPopTitle"></div>
+  <div class="hint-pop-body" id="hintPopBody"></div>
 </div>
 </main>
 <div class="modal-overlay" id="tradeModal">
