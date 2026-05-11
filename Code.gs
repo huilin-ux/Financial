@@ -736,6 +736,18 @@ function sendMorningReport() {
 3. 昨日台股外資買超/賣超金額
 4. 今日對台股影響的重大新聞
 
+⚠️ 搜尋市場數據時，請優先使用以下權威來源，不要使用比價網站、部落格或不明來源：
+【指定來源】
+- 美股 S&P500 / Nasdaq：fred.stlouisfed.org 或 barchart.com 或 finance.yahoo.com
+- 費城半導體指數(SOX)：barchart.com 或 marketwatch.com
+- 台幣匯率(USD/TWD)：rate.bot.com.tw（台灣銀行官方）
+- 外資買賣超：twse.com.tw（台灣證券交易所官方）
+- 美國公債殖利率：home.treasury.gov（美國財政部官方）
+- 台股加權指數：twse.com.tw
+
+以上來源的數據最為權威準確，請優先引用這些網站的實際報導或數據頁面 URL。
+不要引用：比價網站(biggo等)、部落格、社群媒體、論壇。
+
 【持倉資料】
 ${holdingLines}
 
@@ -779,10 +791,11 @@ ${watchLines}
       }).join('\n');
     } else {
       sourceLines = [
-        `・S&P500 / Nasdaq：${shortenUrl('https://finance.yahoo.com')}`,
-        `・費城半導體：${shortenUrl('https://www.marketwatch.com/investing/index/sox')}`,
-        `・台幣匯率：${shortenUrl('https://tw.tradingeconomics.com/taiwan/currency')}`,
-        `・外資動向：${shortenUrl('https://www.twse.com.tw/zh/trading/foreign/fmtqik.html')}`
+        `・S&P500 / Nasdaq：${shortenUrl(cfg.sp500_url   || 'https://fred.stlouisfed.org/series/SP500')}`,
+        `・費城半導體(SOX)：${shortenUrl(cfg.sox_url    || 'https://www.barchart.com/indices/overview/$SOX')}`,
+        `・台幣匯率：${shortenUrl(cfg.twd_url           || 'https://rate.bot.com.tw/xrt?Lang=zh-TW')}`,
+        `・外資動向：${shortenUrl(cfg.foreign_url       || 'https://www.twse.com.tw/zh/trading/foreign/fmtqik.html')}`,
+        `・美債殖利率：${shortenUrl(cfg.bond_url        || 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/')}`
       ].join('\n');
     }
     const sourceMsg = `📰 今日資料來源\n${sourceLines}\n⏱ ${now}`;
