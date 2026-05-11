@@ -7,6 +7,20 @@ const CLOUD_API_KEY = 'meow-cat-financial-2026';
 function getCloudUrl(){ return localStorage.getItem('cloud_api_url') || ''; }
 function setCloudUrl(u){ localStorage.setItem('cloud_api_url', String(u||'').trim()); }
 
+// Allow auto-setup via ?api=... in the page URL. Strips it from the address bar after saving.
+(function autoSetupFromQuery(){
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const apiFromUrl = params.get('api');
+    if (apiFromUrl && apiFromUrl.startsWith('https://')) {
+      setCloudUrl(apiFromUrl);
+      params.delete('api');
+      const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+      history.replaceState(null, '', clean);
+    }
+  } catch(e) {}
+})();
+
 async function loadFromCloud() {
   const url = getCloudUrl();
   if (!url) return null;
