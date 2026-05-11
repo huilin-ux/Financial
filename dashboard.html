@@ -296,19 +296,24 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   /* 定期定額 tab: 2-col stock panels */
   #dcaStockPanels{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #dcaStockPanels > .panel{margin-bottom:0}
-  /* 風險管理 tab: 2-col panel grid */
-  #tab-risk.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+  /* 風險管理 tab: 2-col panel grid (stretch to balance heights) */
+  #tab-risk.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #tab-risk.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
   #tab-risk.section.active > .panel{margin-bottom:0}
-  /* 交易記錄 tab: 2-col layout */
-  #tab-log.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
+  /* 交易記錄 tab: 2-col layout (stretch) */
+  #tab-log.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #tab-log.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
   #tab-log.section.active > .panel{margin-bottom:0}
 }
 @media(min-width:1200px){
   .shell{max-width:1280px;padding:20px 28px 80px}
-  #tab-settings.section.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
-  #tab-settings .panel{margin-bottom:0}
+  /* 設定: reorder to pair tall+tall, short+short — minimizes row-height gaps */
+  #tab-settings.section.active{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  #tab-settings.section.active .panel{margin-bottom:0}
+  #tab-settings.section.active .panel:nth-of-type(1){order:1}
+  #tab-settings.section.active .panel:nth-of-type(2){order:3}
+  #tab-settings.section.active .panel:nth-of-type(3){order:2}
+  #tab-settings.section.active .panel:nth-of-type(4){order:4}
   .sval{font-size:28px}
   .htk{font-size:20px}
 }
