@@ -283,31 +283,31 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   .ht th:nth-child(4),.ht td:nth-child(4){display:none}
 }
 @media(min-width:1024px){
-  .shell{max-width:1180px;padding:20px 28px 80px}
-  /* 持倉 tab: dashboard split (Option 3 demo) */
-  #tab-portfolio.section.active{display:grid;grid-template-columns:7fr 5fr;grid-template-areas:"stats stats" "holdings alloc" "holdings trig";gap:12px;align-items:start}
+  .shell{max-width:1080px;padding:18px 24px 80px}
+  /* 持倉 tab: alloc spans right (it's the tallest), holdings + alerts stack on left */
+  #tab-portfolio.section.active{display:grid;grid-template-columns:1fr 1fr;grid-template-areas:"stats stats" "holdings alloc" "trig alloc";gap:10px}
   #tab-portfolio.section.active > .g4{grid-area:stats;margin-bottom:0}
   #tab-portfolio.section.active > #allocPanel{grid-area:alloc;margin-bottom:0}
   #tab-portfolio.section.active > #holdingsPanel{grid-area:holdings;margin-bottom:0}
   #tab-portfolio.section.active > #trigPanel{grid-area:trig;margin-bottom:0}
-  /* 向錢進 tab: 2-col cards (Option 1 demo) */
+  /* 向錢進 tab: 2-col cards */
   #alist{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #alist > .al-card{margin-bottom:0}
   /* 定期定額 tab: 2-col stock panels */
-  #dcaStockPanels{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  #dcaStockPanels{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #dcaStockPanels > .panel{margin-bottom:0}
   /* 風險管理 tab: 2-col panel grid */
-  #tab-risk.section.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #tab-risk.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
   #tab-risk.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
   #tab-risk.section.active > .panel{margin-bottom:0}
   /* 交易記錄 tab: 2-col layout */
-  #tab-log.section.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  #tab-log.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:start}
   #tab-log.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
   #tab-log.section.active > .panel{margin-bottom:0}
 }
 @media(min-width:1200px){
-  .shell{max-width:1400px;padding:24px 32px 80px}
-  #tab-settings.section.active{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .shell{max-width:1280px;padding:20px 28px 80px}
+  #tab-settings.section.active{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
   #tab-settings .panel{margin-bottom:0}
   .sval{font-size:28px}
   .htk{font-size:20px}
