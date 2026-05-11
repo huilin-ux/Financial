@@ -532,6 +532,27 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     </div>
   </div>
 </div>
+<div id="cloud-setup" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(5,8,15,0.98);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="max-width:480px;margin:0 auto;padding:48px 24px 72px">
+    <div style="font-size:44px;margin-bottom:14px;text-align:center">🐱</div>
+    <div style="font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--text-dim);margin-bottom:8px;text-align:center">投資阿喵嘎哩共</div>
+    <div style="font-size:26px;font-weight:700;color:var(--text-primary);margin-bottom:10px;text-align:center">歡迎！先連接你的資料</div>
+    <div style="font-size:15px;color:var(--text-secondary);line-height:1.75;margin-bottom:32px;text-align:center">貼上你的 Apps Script Web App 網址<br>看板就能讀取你 Google Sheet 裡的持倉資料</div>
+    <div style="margin-bottom:16px">
+      <div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">WEB APP 網址</div>
+      <input class="finput" id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocorrect="off" spellcheck="false" style="font-size:14px">
+      <div style="font-size:12px;color:var(--text-dim);margin-top:6px;line-height:1.6">Apps Script → 部署 → 管理部署作業 → 複製「網頁應用程式」網址</div>
+    </div>
+    <div style="margin-bottom:24px">
+      <div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">API 密碼（選填）</div>
+      <input class="finput" id="setup-key" placeholder="meow-cat-financial-2026（預設）" autocomplete="off" style="font-size:14px">
+      <div style="font-size:12px;color:var(--text-dim);margin-top:6px">Sheet「設定」頁的 api_key 值，沒設定就留空</div>
+    </div>
+    <div id="setup-msg" style="font-family:var(--mono);font-size:13px;min-height:22px;margin-bottom:14px;text-align:center"></div>
+    <button id="setup-btn" onclick="doCloudSetup()" class="btn btn-p" style="width:100%;padding:14px;font-size:16px;margin-bottom:12px">連接 →</button>
+    <button onclick="skipCloudSetup()" style="width:100%;padding:12px;background:none;border:none;color:var(--text-dim);font-family:var(--mono);font-size:13px;cursor:pointer;letter-spacing:0.5px">先跳過，不使用 Google Sheet</button>
+  </div>
+</div>
 <div id="onboarding" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(5,8,15,0.97);overflow-y:auto">
   <div style="max-width:480px;margin:0 auto;padding:32px 20px 60px">
     <div style="font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--text-dim);margin-bottom:8px">投資阿喵嘎哩共 · 初次設定</div>

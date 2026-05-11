@@ -836,7 +836,51 @@ function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)re
 // ========== INIT ==========
 function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}
 
+function showCloudSetup(){ document.getElementById('cloud-setup').style.display='block'; }
+function hideCloudSetup(){ document.getElementById('cloud-setup').style.display='none'; }
+
+async function doCloudSetup(){
+  const url=(document.getElementById('setup-url').value||'').trim();
+  const rawKey=(document.getElementById('setup-key').value||'').trim();
+  const key=rawKey||DEFAULT_API_KEY;
+  const msgEl=document.getElementById('setup-msg');
+  const btn=document.getElementById('setup-btn');
+  if(!url.startsWith('https://')){
+    msgEl.style.color='var(--red)';msgEl.textContent='⚠ 請貼上完整的 https:// 網址';return;
+  }
+  btn.disabled=true;btn.textContent='連接中…';
+  msgEl.style.color='var(--text-dim)';msgEl.textContent='';
+  try{
+    const res=await fetch(url+'?key='+encodeURIComponent(key));
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(data.error) throw new Error(data.error);
+    setCloudUrl(url);setCloudApiKey(key);
+    const merged=cloudToLocal_(data);
+    TOTAL_ASSETS=merged.TOTAL_ASSETS;H=merged.H;AL=merged.AL;TRADES=merged.TRADES;DCA_ENTRIES=merged.DCA_ENTRIES;
+    nid=merged.nid;ntid=merged.ntid;dcaNextId=merged.dcaNextId;
+    saveData();
+    msgEl.style.color='var(--green)';msgEl.textContent='✓ 連接成功！';
+    setCloudStatus('🟢 已連動 Google Sheet');
+    setTimeout(()=>{ hideCloudSetup(); renderAll(); },700);
+  }catch(e){
+    btn.disabled=false;btn.textContent='連接 →';
+    msgEl.style.color='var(--red)';
+    const em=e.message;
+    msgEl.textContent=em==='unauthorized'?'✗ 密碼錯誤，請確認 api_key':'✗ 連接失敗：'+em;
+  }
+}
+
+function skipCloudSetup(){
+  localStorage.setItem('cloud_setup_skipped','1');
+  hideCloudSetup();
+  if(!loadData()) showOnboarding(); else renderAll();
+}
+
 async function bootstrap(){
+  if(!getCloudUrl()&&!localStorage.getItem('cloud_setup_skipped')){
+    showCloudSetup();return;
+  }
   const cloud = await loadFromCloud();
   if (cloud) {
     TOTAL_ASSETS = cloud.TOTAL_ASSETS;
