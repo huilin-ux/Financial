@@ -1,13 +1,15 @@
 // ========== CONSTANTS ==========
 const COLORS = ['#ffb832','#00c896','#3a7bd5','#9b59b6','#f39c12'];
 const FINMIND_URL = 'https://api.finmindtrade.com/api/v4/data';
-const CLOUD_API_KEY = 'meow-cat-financial-2026';
+const DEFAULT_API_KEY = 'meow-cat-financial-2026';
 
 // ========== CLOUD SYNC (Google Sheets via Apps Script Web App) ==========
 function getCloudUrl(){ return localStorage.getItem('cloud_api_url') || ''; }
 function setCloudUrl(u){ localStorage.setItem('cloud_api_url', String(u||'').trim()); }
+function getCloudApiKey(){ return localStorage.getItem('cloud_api_key') || DEFAULT_API_KEY; }
+function setCloudApiKey(k){ localStorage.setItem('cloud_api_key', String(k||'').trim()); }
 
-// Allow auto-setup via ?api=... in the page URL. Strips it from the address bar after saving.
+// Allow auto-setup via ?api=... and ?key=... in the page URL. Strips them from the address bar after saving.
 (function autoSetupFromQuery(){
   try {
     const params = new URLSearchParams(window.location.search);
@@ -15,7 +17,14 @@ function setCloudUrl(u){ localStorage.setItem('cloud_api_url', String(u||'').tri
     if (apiFromUrl && apiFromUrl.startsWith('https://')) {
       setCloudUrl(apiFromUrl);
       params.delete('api');
-      const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    }
+    const keyFromUrl = params.get('key');
+    if (keyFromUrl) {
+      setCloudApiKey(keyFromUrl);
+      params.delete('key');
+    }
+    const clean = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    if (clean !== window.location.pathname + window.location.search) {
       history.replaceState(null, '', clean);
     }
   } catch(e) {}
@@ -25,7 +34,7 @@ async function loadFromCloud() {
   const url = getCloudUrl();
   if (!url) return null;
   try {
-    const res = await fetch(url + '?key=' + encodeURIComponent(CLOUD_API_KEY));
+    const res = await fetch(url + '?key=' + encodeURIComponent(getCloudApiKey()));
     if (!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -41,7 +50,7 @@ async function saveToCloud() {
   if (!url) return false;
   try {
     const body = {
-      key: CLOUD_API_KEY,
+      key: getCloudApiKey(),
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
       watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,source:a.src,status:a.status})),
       dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending})),
