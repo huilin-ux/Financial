@@ -727,3 +727,34 @@ function testAll() {
   const ok = sendLine(cfg.line_token, 'INVEST OS 連線測試成功 ✅', cfg.line_user_id);
   Logger.log('[4/4] LINE 發送 ' + (ok ? '成功' : '失敗'));
 }
+
+/**
+ * 強制測試向錢進推播：忽略交易時間和門檻檢查，
+ * 把每一筆 watching/holding 都當作到價推一次，
+ * 也忽略「當天已推過」的記錄。
+ */
+function testForceAlert() {
+  const cfg = getConfig();
+  const owner = cfg.owner_name || '朋友';
+  const list = getWatchlist();
+  Logger.log('testForceAlert: ' + list.length + ' 筆向錢進');
+
+  list.forEach(w => {
+    const price = getPrice(w.stock_tk) || w.buy_price;
+    let title, prompt;
+
+    if (w.status === 'watching') {
+      title = '🎯 投資阿喵共・買入到價（測試）';
+      prompt = `${owner} 鎖定的「${w.stock_nm}(${w.stock_tk})」現價 ${price}，預定買入價 ${w.buy_price}。資訊來源：${w.source || '無'}。請用繁體中文寫 80-120 字買入提醒，冷靜理性、提醒按計畫分批進場，適度 emoji。`;
+    } else if (w.status === 'holding') {
+      title = '🎉 投資阿喵共・停利到價（測試）';
+      prompt = `${owner} 持有的「${w.stock_nm}(${w.stock_tk})」現價 ${price}，停利價 ${w.take_profit}。請用繁體中文寫 80-120 字超開心恭喜訊息，多用 🎉🥳💰。`;
+    } else {
+      return; // sold_profit / sold_loss 不推
+    }
+
+    const msg = askGemini(cfg.gemini_key, prompt) || `${w.stock_nm}(${w.stock_tk}) 測試訊息`;
+    const ok = sendLine(cfg.line_token, title + '\n' + msg, cfg.line_user_id);
+    Logger.log(`  ${w.stock_tk} 推播 ${ok ? '成功' : '失敗'}`);
+  });
+}
