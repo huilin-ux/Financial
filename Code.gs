@@ -25,11 +25,21 @@ function doGet(e) {
       watchlist: getWatchlist(),
       dca: getDCA(),
       trades: getTrades(),
-      config: getConfig()
+      config: getConfig(),
+      morningReport: getLastMorningReport_()
     });
   } catch (err) {
     return apiResp_({ error: err.message }, 500);
   }
+}
+
+function getLastMorningReport_() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    main: props.getProperty('last_morning_main') || '',
+    sources: props.getProperty('last_morning_sources') || '',
+    at: props.getProperty('last_morning_at') || ''
+  };
 }
 
 function doPost(e) {
@@ -803,6 +813,13 @@ ${watchLines}
     sendLine(cfg.line_token, mainMsg, cfg.line_user_id);
     Utilities.sleep(1000);
     sendLine(cfg.line_token, sourceMsg, cfg.line_user_id);
+
+    // 同步給 Dashboard 顯示
+    PropertiesService.getScriptProperties().setProperties({
+      'last_morning_main': mainMsg,
+      'last_morning_sources': sourceMsg,
+      'last_morning_at': new Date().toISOString()
+    });
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
