@@ -11,7 +11,6 @@
 
 // ========== 設定區 ==========
 const GEMINI_MODEL = 'gemini-2.5-flash';
-const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
 
 // Dashboard 跟 Web App 之間的通關密語。可以在 Sheet「設定」分頁加一列
 // api_key | <你自己的字串> 來覆寫；沒填就用下面的預設。

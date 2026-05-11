@@ -1,6 +1,5 @@
 // ========== CONSTANTS ==========
 const COLORS = ['#ffb832','#00c896','#3a7bd5','#9b59b6','#f39c12'];
-const FINMIND_URL = 'https://api.finmindtrade.com/api/v4/data';
 const DEFAULT_API_KEY = 'meow-cat-financial-2026';
 
 // ========== CLOUD SYNC (Google Sheets via Apps Script Web App) ==========
@@ -115,72 +114,6 @@ let ntid         = saved ? saved.ntid         : 1;
 let DCA_ENTRIES  = saved ? saved.DCA_ENTRIES  : [];
 let dcaNextId    = saved ? saved.dcaNextId    : 1;
 
-// ========== TOKEN ==========
-function getToken(){ return localStorage.getItem('fm_token')||''; }
-function saveToken(){
-  const v = document.getElementById('fmToken').value || document.getElementById('cfg-token').value;
-  localStorage.setItem('fm_token', v.trim());
-}
-window.addEventListener('DOMContentLoaded',()=>{
-  const t = getToken();
-  if(t){
-    document.getElementById('fmToken').value = t;
-    document.getElementById('cfg-token').value = t;
-  }
-});
-
-// ========== FINMIND PRICE FETCH ==========
-async function fetchPrice(stockId){
-  const token = getToken();
-  if(!token) return null;
-  const today = new Date();
-  const y = today.getFullYear();
-  const m = String(today.getMonth()+1).padStart(2,'0');
-  const startDate = `${y}-${m}-${String(Math.max(1,today.getDate()-5)).padStart(2,'0')}`;
-  try {
-    const url = `${FINMIND_URL}?dataset=TaiwanStockPrice&data_id=${stockId}&start_date=${startDate}&token=${token}`;
-    const res = await fetch(url);
-    const json = await res.json();
-    if(json.status===200 && json.data && json.data.length>0){
-      return parseFloat(json.data[json.data.length-1].close);
-    }
-  } catch(e){}
-  return null;
-}
-
-async function fetchAllPrices(){
-  const token = getToken();
-  if(!token){ setPriceStatus('err','請先輸入 Finmind Token'); return; }
-  setPriceStatus('stale','更新中…');
-  document.getElementById('lastUpdateStat').textContent = '更新中…';
-  let success = 0;
-  for(let i=0;i<H.length;i++){
-    const price = await fetchPrice(H[i].tk);
-    if(price !== null){ H[i].p = price; success++; }
-    await new Promise(r=>setTimeout(r,300));
-  }
-  for(let i=0;i<AL.length;i++){
-    const price = await fetchPrice(AL[i].tk);
-    if(price !== null) AL[i].p = price;
-    await new Promise(r=>setTimeout(r,300));
-  }
-  const now = new Date();
-  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  document.getElementById('lastUpdateStat').textContent = ts;
-  if(success===H.length) setPriceStatus('fresh',`已更新 ${ts}`);
-  else if(success>0) setPriceStatus('stale',`部分更新 ${success}/${H.length}`);
-  else setPriceStatus('err','Token 錯誤或無資料');
-  H.forEach(h=>{ h._spark=null; });
-  saveData();
-  renderH(); renderTA(); renderSummaryStats(); renderRisk(); renderAL(); renderAllocation();
-}
-
-function setPriceStatus(state, msg){
-  const dot = document.getElementById('priceDot');
-  const txt = document.getElementById('priceStatusTxt');
-  dot.className = 'price-dot ' + state;
-  txt.textContent = msg;
-}
 
 // ========== SUMMARY STATS ==========
 function renderSummaryStats(){
@@ -762,16 +695,6 @@ function renderSettingsSrcChips(){const el=document.getElementById('settingsSrcC
 function addSrcFromSettings(){const inp=document.getElementById('settings-src-input');if(!inp)return;const val=inp.value.trim();if(!val||SOURCES.includes(val)){inp.value='';return;}SOURCES.unshift(val);saveSources();inp.value='';renderSettingsSrcChips();renderAllSrcChips();}
 function deleteSettingsSrc(val){SOURCES=SOURCES.filter(s=>s!==val);saveSources();renderSettingsSrcChips();renderAllSrcChips();}
 
-// ========== AUTO REFRESH ==========
-let autoRefreshInterval=null,autoRefreshMinutes=30,nextRefreshTime=null,countdownInterval=null;
-function isMarketOpen(){const now=new Date();const day=now.getDay();if(day===0||day===6)return false;const mins=now.getHours()*60+now.getMinutes();return mins>=540&&mins<810;}
-function startAutoRefresh(min){stopAutoRefresh();autoRefreshMinutes=min;autoRefreshInterval=setInterval(async()=>{if(isMarketOpen()&&getToken())await fetchAllPrices();scheduleNextRefresh();},min*60*1000);scheduleNextRefresh();updateAutoRefreshUI(true);}
-function stopAutoRefresh(){if(autoRefreshInterval){clearInterval(autoRefreshInterval);autoRefreshInterval=null;}if(countdownInterval){clearInterval(countdownInterval);countdownInterval=null;}nextRefreshTime=null;updateAutoRefreshUI(false);}
-function scheduleNextRefresh(){nextRefreshTime=new Date(Date.now()+autoRefreshMinutes*60*1000);if(countdownInterval)clearInterval(countdownInterval);countdownInterval=setInterval(updateCountdown,1000);}
-function updateCountdown(){if(!nextRefreshTime)return;const el=document.getElementById('refreshCountdown');if(!el)return;const diff=Math.max(0,nextRefreshTime-Date.now());const m=Math.floor(diff/60000),s=Math.floor((diff%60000)/1000);el.textContent=`下次更新 ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}${isMarketOpen()?'':' (休市)'}`;}
-function updateAutoRefreshUI(on){const btn=document.getElementById('autoRefreshBtn');const status=document.getElementById('autoRefreshStatus');const cd=document.getElementById('refreshCountdown');if(!btn)return;if(on){btn.textContent='停止自動';btn.style.background='rgba(255,100,80,0.15)';btn.style.borderColor='rgba(255,100,80,0.4)';btn.style.color='#ff6450';if(status)status.textContent=`每 ${autoRefreshMinutes} 分鐘`;}else{btn.textContent='自動更新';btn.style.background='';btn.style.borderColor='';btn.style.color='';if(status)status.textContent='已關閉';if(cd)cd.textContent='';}}
-function toggleAutoRefresh(){if(autoRefreshInterval){stopAutoRefresh();}else{if(!getToken()){setPriceStatus('err','請先輸入 Token');return;}startAutoRefresh(autoRefreshMinutes);fetchAllPrices();}}
-function setRefreshInterval(mins,btn){autoRefreshMinutes=mins;document.querySelectorAll('.ivl-btn').forEach(b=>{b.style.background='transparent';b.style.borderColor='var(--border)';b.style.color='var(--text-secondary)';});if(btn){btn.style.background='rgba(0,200,150,0.15)';btn.style.borderColor='var(--accent)';btn.style.color='var(--accent)';}if(autoRefreshInterval)startAutoRefresh(mins);}
 
 // ========== STOCK NAMES (compact) ==========
 const STOCK_NAMES={'0050':'元大台灣50','0056':'元大高股息','006208':'富邦台50','00646':'元大S&P500','00662':'富邦NASDAQ','00878':'國泰永續高股息','00919':'群益台灣精選高息','1101':'台泥','1216':'統一','1301':'台塑','1303':'南亞','1326':'台化','2002':'中鋼','2105':'正新','2207':'和泰車','2301':'光寶科','2303':'聯電','2308':'台達電','2317':'鴻海','2327':'國巨','2330':'台積電','2337':'旺宏','2354':'鴻準','2357':'華碩','2360':'致茂','2376':'技嘉','2377':'微星','2379':'瑞昱','2382':'廣達','2383':'台光電','2385':'群光','2395':'研華','2408':'南亞科','2409':'友達','2412':'中華電','2454':'聯發科','2474':'可成','2603':'長榮','2609':'陽明','2618':'長榮航','2880':'華南金','2881':'富邦金','2882':'國泰金','2884':'玉山金','2885':'元大金','2886':'兆豐金','2890':'永豐金','2891':'中信金','2892':'第一金','2912':'統一超','3008':'大立光','3017':'奇鋐','3034':'聯詠','3035':'智原','3037':'欣興','3045':'台灣大','4904':'遠傳','4938':'和碩','5854':'合庫金','6176':'瑞儀','6239':'力成'};
@@ -888,6 +811,7 @@ async function bootstrap(){
     nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
     saveData();
     setCloudStatus('🟢 已連動 Google Sheet');
+    updateLastSync_();
     renderAll();
     return;
   }
@@ -902,6 +826,11 @@ async function bootstrap(){
 function setCloudStatus(msg){
   const el = document.getElementById('cloudStatus');
   if (el) el.textContent = msg;
+}
+function updateLastSync_(){
+  const now=new Date();
+  const el=document.getElementById('lastUpdateStat');
+  if(el) el.textContent=`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
 }
 
 async function manualSync(){
@@ -925,6 +854,7 @@ async function pullFromCloud(){
     nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
     localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,nid,ntid,dcaNextId}));
     setCloudStatus('🟢 已從 Google Sheet 拉取');
+    updateLastSync_();
     renderAll();
   } else {
     setCloudStatus('🔴 拉取失敗，檢查 API URL');

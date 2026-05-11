@@ -114,6 +114,6 @@ notified_{stock_tk}_{type}_{yyyyMMdd}
 
 ## 六、常見問題
 
-- **股價抓不到**：Finmind 公開端點有流量限制，少量自用通常沒問題，必要時可申請免費 token 在 `getPrice` 中加上 `&token=` 參數。
+- **股價抓不到**：系統使用 Yahoo Finance 公開 API，免費無需 token。若偶爾回傳空值，通常是 Yahoo 暫時限流，稍後重試即可。
 - **LINE 沒收到**：依序檢查（1）Channel access token 是否正確、未過期；（2）你的帳號是否已加 Bot 為好友（Push 給沒加好友的 userId 會 403）；（3）`line_user_id` 是 `U` 開頭的 35 字元字串，不是 Display Name。Messaging API 免費方案每月 200 則訊息以內。
 - **Gemini 訊息空白**：常見原因是 API Key 失效、被 safety filter 擋下，或超出 free tier 額度。先在 `testAll` 中加一行 `Logger.log(askGemini(cfg.gemini_key, '說個哈囉'))` 排查；HTTP 400 通常是 key 錯，429 是超量。
