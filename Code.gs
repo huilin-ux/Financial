@@ -1,5 +1,5 @@
 /**
- * INVEST OS 投資推播自動化系統
+ * 投資阿喵嘎哩共 推播自動化系統
  * Google Apps Script + LINE Messaging API + Google Gemini API
  *
  * 功能：
@@ -1005,7 +1005,7 @@ function testAll() {
   }
 
   // 4. 發 LINE 測試訊息（Messaging API push）
-  const ok = sendLine(cfg.line_token, 'INVEST OS 連線測試成功 ✅', cfg.line_user_id);
+  const ok = sendLine(cfg.line_token, '投資阿喵嘎哩共 連線測試成功 ✅', cfg.line_user_id);
   Logger.log('[4/4] LINE 發送 ' + (ok ? '成功' : '失敗'));
 }
 

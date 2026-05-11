@@ -1,4 +1,4 @@
-# INVEST OS 設定說明
+# 投資阿喵嘎哩共 設定說明
 
 本系統由 Google Apps Script + LINE Messaging API + Google Gemini API 組成，所有資料來源都在同一個 Google Sheets。
 
@@ -90,7 +90,7 @@
 1. **建立試算表**：依上方四個工作表結構建立 Google Sheets，把金鑰填入「設定」工作表。
 2. **建立 Apps Script**：在 Sheets 選 `擴充功能 → Apps Script`，把 `Code.gs` 內容整份貼上。
 3. **填入 SHEET_ID**：把檔案頂端的 `SHEET_ID` 改成你試算表的 ID。
-4. **執行 `testAll`**：在 Apps Script 編輯器選擇函式 `testAll` → 執行。第一次會要求授權（Sheets / 外部 API）。看到 LINE 收到 `INVEST OS 連線測試成功 ✅` 即代表 OK。
+4. **執行 `testAll`**：在 Apps Script 編輯器選擇函式 `testAll` → 執行。第一次會要求授權（Sheets / 外部 API）。看到 LINE 收到 `投資阿喵嘎哩共 連線測試成功 ✅` 即代表 OK。
 5. **執行 `setupTriggers`**：再次執行函式 `setupTriggers`，自動建立四個排程。完成後在「觸發條件」頁可看到 4 筆。
 
 ## 四、排程一覽

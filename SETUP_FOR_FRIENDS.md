@@ -37,7 +37,7 @@ LINE Bot   Dashboard（手機/電腦看板）
 ### 1-1 建立試算表
 
 1. 開 <https://sheets.new>（會建一個新的 Google Sheet）
-2. 改名「**INVEST OS**」（左上點檔名修改）
+2. 改名「**投資阿喵嘎哩共**」（左上點檔名修改）
 3. **建立 4 個分頁**，名字必須一字不差：
    - `持倉`
    - `定期定額`
@@ -188,7 +188,7 @@ owner_name	你的名字
    [3/4] Yahoo OK
    [4/4] LINE 成功
    ```
-5. **手機 LINE 應該收到「INVEST OS 連線測試成功 ✅」**
+5. **手機 LINE 應該收到「投資阿喵嘎哩共 連線測試成功 ✅」**
 
 如果 LINE 沒收到 → 你 Bot 還沒加好友（回 Step 3-6）。
 
@@ -247,7 +247,7 @@ https://huilin-ux.github.io/Financial/?api=https://script.google.com/macros/s/AK
 
 1. 手機 Safari 開上面那條長連結
 2. 等載入完（設定頁應該顯示 🟢 已連動 Google Sheet）
-3. 下方 **分享 ⬆️ → 加入主畫面** → 命名「INVEST OS」
+3. 下方 **分享 ⬆️ → 加入主畫面** → 命名「投資阿喵嘎哩共」
 4. 桌面就有 icon 可以直接點開
 
 ### 換新裝置
