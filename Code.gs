@@ -271,14 +271,20 @@ function replyLine_(token, replyToken, text) {
 }
 
 // 每次 Bot 回訊息都會在下方顯示這排快速按鈕
-// imageUrl 會等 Kate 提供 Imgur 圖示後補上
+// imageUrl = 招財貓 icon set，hosted on catbox.moe
 const QUICK_REPLY_MENU_ = [
-  { type: 'action', action: { type: 'message', label: '查詢持倉', text: '查詢持倉' } },
-  { type: 'action', action: { type: 'message', label: '查向錢進', text: '查向錢進' } },
-  { type: 'action', action: { type: 'message', label: '現在損益', text: '現在損益' } },
-  { type: 'action', action: { type: 'message', label: '今日早報', text: '今日早報' } },
-  { type: 'action', action: { type: 'message', label: '推播時機', text: '推播時機' } },
-  { type: 'action', action: { type: 'message', label: '使用說明', text: '使用說明' } }
+  { type: 'action', imageUrl: 'https://files.catbox.moe/lftt82.png',
+    action: { type: 'message', label: '查詢持倉', text: '查詢持倉' } },
+  { type: 'action', imageUrl: 'https://files.catbox.moe/r2rvsm.png',
+    action: { type: 'message', label: '查向錢進', text: '查向錢進' } },
+  { type: 'action', imageUrl: 'https://files.catbox.moe/pg4iv2.png',
+    action: { type: 'message', label: '現在損益', text: '現在損益' } },
+  { type: 'action', imageUrl: 'https://files.catbox.moe/rls0o1.png',
+    action: { type: 'message', label: '今日早報', text: '今日早報' } },
+  { type: 'action', imageUrl: 'https://files.catbox.moe/boph7s.png',
+    action: { type: 'message', label: '推播時機', text: '推播時機' } },
+  { type: 'action', imageUrl: 'https://files.catbox.moe/l6rr6p.png',
+    action: { type: 'message', label: '使用說明', text: '使用說明' } }
 ];
 
 function apiResp_(obj) {
