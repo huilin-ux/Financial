@@ -67,12 +67,17 @@ function cloudToLocal_(data) {
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
   const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,pending:!r.active}));
   const cfg = data.config || {};
+  GEMINI_KEY = String(cfg.gemini_key || '').replace(/\s+/g, '');
+  OWNER_NAME = String(cfg.owner_name || '朋友').trim();
   return {
     TOTAL_ASSETS: Number(cfg.total_assets) || 0,
     H: h, AL: al, TRADES: tr, DCA_ENTRIES: dca,
     nid: al.length+1, ntid: tr.length+1, dcaNextId: dca.length+1
   };
 }
+
+let GEMINI_KEY = '';
+let OWNER_NAME = '朋友';
 
 // ========== PERSISTENT DATA (localStorage as offline cache) ==========
 function loadData() {
@@ -497,13 +502,94 @@ function addAlert(){
 }
 function delA(id){AL=AL.filter(a=>a.id!==id);saveData();renderAL();}
 
-// ========== AI REPORT (Anthropic — needs proxy or API key) ==========
+// ========== AI REPORT (Gemini, called direct from browser) ==========
 async function genReport(){
   const btn=document.getElementById('rfbtn');
+  const sentEl=document.getElementById('rsentiment');
+  const sumEl=document.getElementById('rsummary');
+  const bodyEl=document.getElementById('rbody');
+
+  if(!GEMINI_KEY){
+    sumEl.textContent='找不到 Gemini key。請確認 Google Sheet「設定」分頁有填 gemini_key，然後刷新 Dashboard。';
+    bodyEl.innerHTML='';
+    return;
+  }
+
   btn.disabled=true;btn.textContent='生成中…';
-  document.getElementById('rsentiment').textContent='—';
-  document.getElementById('rsummary').textContent='AI 日報暫未連線。請先在設定 → 串接 Gemini API（或透過 Apps Script 代理 Anthropic）。';
-  document.getElementById('rbody').innerHTML='<div style="font-family:var(--mono);font-size:14px;color:var(--text-dim);padding:14px 0">// AI 日報需另接 API。目前 LINE Bot 已用 Gemini 推播每日早報，可參考相同金鑰串接。</div>';
+  sentEl.textContent='—';sentEl.style.color='var(--text-dim)';
+  sumEl.textContent='Gemini 正在分析你的持倉…';
+  bodyEl.innerHTML=`<div class="loadbar"></div>${[90,70,100,60,80,75,65].map(w=>`<div class="skel" style="width:${w}%"></div>`).join('')}`;
+
+  const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  const holdStr=H.map(h=>`${h.tk}${h.nm} 現價${h.p} 成本${h.c} ${h.s}股 損益${Math.round((h.p-h.c)*h.s)}`).join('；')||'（無持倉）';
+  const watchStr=AL.filter(a=>a.status!=='sold_profit'&&a.status!=='sold_loss').map(a=>`${a.tk}${a.nm} 買${a.b}/利${a.tp}/損${a.stop} 來源${a.src}`).join('；')||'（無向錢進）';
+  const {wr,total}=calcWR();
+
+  const prompt=`你是 ${OWNER_NAME} 的台灣股市投資顧問，今天是 ${today}。
+
+我的持倉：${holdStr}
+總資產：$${TOTAL_ASSETS.toLocaleString()}
+交易勝率：${wr}%（${total} 筆已結算）
+向錢進清單：${watchStr}
+
+請針對我的具體持倉，用繁體中文回覆**純 JSON**（不要包 markdown code block），格式：
+{
+  "summary": "30 字內針對我持倉的一句話總結",
+  "sentiment": "bullish 或 bearish 或 neutral",
+  "markets": [
+    {"name":"美股 S&P500","change":"+x.x%","note":"對你持倉影響"},
+    {"name":"費城半導體","change":"+x.x%","note":"對你持倉影響"},
+    {"name":"台灣加權","change":"+x.x%","note":"今日台股"},
+    {"name":"USD/TWD","change":"xx.x","note":"匯率影響"},
+    {"name":"美十年債殖利率","change":"x.xx%","note":"利率影響"},
+    {"name":"外資動向","change":"買/賣超xx億","note":"外資態度"}
+  ],
+  "positionAlerts": [
+    {"tk":"代號","title":"今日重點","body":"針對該持倉的具體分析（含成本和股數參考）"}
+  ],
+  "friendAlerts": "針對向錢進清單的評論：哪個合理、哪個謹慎",
+  "suggestion": "3 點具體行動建議",
+  "watch": ["關鍵詞1","關鍵詞2","關鍵詞3"]
+}
+
+注意：你沒有實時市場資料，markets 的數字請用合理推估值（標明「估」字也可），重點放在 positionAlerts 的個股分析和 suggestion 的行動建議。`;
+
+  try{
+    const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(GEMINI_KEY);
+    const res=await fetch(url,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        contents:[{parts:[{text:prompt}]}],
+        generationConfig:{maxOutputTokens:1500,temperature:0.8,responseMimeType:'application/json'}
+      })
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    const text=data.candidates?.[0]?.content?.parts?.map(p=>p.text).join('')||'';
+    const r=JSON.parse(text.replace(/```json|```/g,'').trim());
+
+    const sm={bullish:{l:'看漲 BULL',c:'var(--green)'},bearish:{l:'看跌 BEAR',c:'var(--red)'},neutral:{l:'中性 FLAT',c:'var(--amber)'}};
+    const sv=sm[r.sentiment]||sm.neutral;
+    sentEl.textContent=sv.l;
+    sentEl.style.color=sv.c;
+    sumEl.textContent=r.summary;
+
+    const mH=(r.markets||[]).map(m=>{const u=String(m.change).startsWith('+'),d=String(m.change).startsWith('-');const col=u?'var(--green)':d?'var(--red)':'var(--amber)';return`<div class="mcell"><div class="mcell-name">${m.name}</div><div class="mcell-val" style="color:${col}">${m.change}</div><div class="mcell-note">${m.note||''}</div></div>`;}).join('');
+    const paH=(r.positionAlerts||[]).map(pa=>`<div class="ecard"><div class="etag">[ ${pa.tk} ] ${pa.title}</div><div class="ebody">${pa.body}</div></div>`).join('');
+    const wH=(r.watch||[]).map(w=>`<span class="wword">${w}</span>`).join('');
+
+    bodyEl.innerHTML=`
+      <div class="mktgrid">${mH}</div>
+      <div class="panel" style="margin-bottom:12px"><div class="phead"><div class="plabel">你的持倉今日分析</div><span style="font-family:var(--mono);font-size:12px;color:rgba(0,229,204,0.5);letter-spacing:1px">PERSONALIZED</span></div><div style="padding:14px 16px">${paH}</div></div>
+      <div class="ecard" style="border-left-color:var(--purple);margin-bottom:12px"><div class="etag" style="color:var(--purple)">[ 向錢進評估 ] 今日清單怎麼看</div><div class="ebody">${r.friendAlerts||'—'}</div></div>
+      <div style="margin-bottom:12px;padding:13px 15px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r)"><div style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:9px">WATCH KEYWORDS</div>${wH}</div>
+      <div class="ibox"><div class="ilbl">AI 給你的 3 點行動建議</div><div class="ibody" style="white-space:pre-line">${r.suggestion||'—'}</div></div>
+      <div style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">⚠ Gemini 沒有實時市場數據，分析僅供參考</div>`;
+  }catch(e){
+    bodyEl.innerHTML=`<div style="font-family:var(--mono);font-size:14px;color:var(--red);padding:20px 0">// ERROR: ${e.message}<br><span style="font-size:12px;color:var(--text-dim)">檢查 gemini_key 是否正確</span></div>`;
+    sumEl.textContent='生成失敗，請重試';
+  }
   btn.disabled=false;btn.textContent='▶ 重新生成';
 }
 
