@@ -562,7 +562,7 @@ async function genReport(){
       body:JSON.stringify({
         contents:[{parts:[{text:prompt+'\n\n請先用 Google Search 搜尋當天美股、台股、半導體、匯率的真實收盤/開盤數據再回答。markets 欄位的數字必須來自搜尋結果。'}]}],
         tools:[{google_search:{}}],
-        generationConfig:{maxOutputTokens:2000,temperature:0.7}
+        generationConfig:{maxOutputTokens:6000,temperature:0.7,thinkingConfig:{thinkingBudget:0}}
       })
     });
     if(!res.ok) throw new Error('HTTP '+res.status);

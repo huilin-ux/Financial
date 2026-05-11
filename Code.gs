@@ -339,7 +339,11 @@ function askGemini(apiKey, prompt, grounded) {
       + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: grounded ? 1500 : 500, temperature: 0.8 }
+      generationConfig: {
+        maxOutputTokens: grounded ? 4000 : 800,
+        temperature: 0.8,
+        thinkingConfig: { thinkingBudget: 0 } // 關閉內部 thinking，避免吃掉輸出 token
+      }
     };
     if (grounded) body.tools = [{ google_search: {} }];
     const res = UrlFetchApp.fetch(url, {
@@ -354,8 +358,14 @@ function askGemini(apiKey, prompt, grounded) {
     }
     const json = JSON.parse(res.getContentText());
     const cand = json.candidates && json.candidates[0];
-    if (!cand || !cand.content || !cand.content.parts) return '';
-    return cand.content.parts.map(p => p.text || '').join('').trim();
+    if (!cand) return '';
+    if (cand.finishReason && cand.finishReason !== 'STOP') {
+      Logger.log('askGemini finishReason=' + cand.finishReason);
+    }
+    if (!cand.content || !cand.content.parts) return '';
+    const text = cand.content.parts.map(p => p.text || '').join('').trim();
+    Logger.log('askGemini output length: ' + text.length + ' chars');
+    return text;
   } catch (err) {
     Logger.log('askGemini 例外：' + err.message);
     return '';
