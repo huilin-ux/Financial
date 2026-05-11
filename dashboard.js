@@ -69,6 +69,7 @@ function cloudToLocal_(data) {
   const cfg = data.config || {};
   GEMINI_KEY = String(cfg.gemini_key || '').replace(/\s+/g, '');
   OWNER_NAME = String(cfg.owner_name || '朋友').trim();
+  LAST_MORNING_REPORT = data.morningReport || null;
   return {
     TOTAL_ASSETS: Number(cfg.total_assets) || 0,
     H: h, AL: al, TRADES: tr, DCA_ENTRIES: dca,
@@ -78,6 +79,7 @@ function cloudToLocal_(data) {
 
 let GEMINI_KEY = '';
 let OWNER_NAME = '朋友';
+let LAST_MORNING_REPORT = null;
 
 // ========== PERSISTENT DATA (localStorage as offline cache) ==========
 function loadData() {
@@ -192,8 +194,6 @@ function renderSummaryStats(){
 function tick(){
   const n=new Date(),z=v=>String(v).padStart(2,'0');
   document.getElementById('hclock').innerHTML=`${n.getFullYear()}.${z(n.getMonth()+1)}.${z(n.getDate())} <em>${z(n.getHours())}:${z(n.getMinutes())}:${z(n.getSeconds())}</em>`;
-  const rd=document.getElementById('rdate');
-  if(rd) rd.textContent=`AI MARKET REPORT · ${n.getFullYear()}.${z(n.getMonth()+1)}.${z(n.getDate())}`;
 }
 tick(); setInterval(tick,1000);
 
@@ -203,6 +203,7 @@ function go(id,btn){
   document.querySelectorAll('.ntab').forEach(b=>b.classList.remove('active'));
   document.getElementById('tab-'+id).classList.add('active');
   btn.classList.add('active');
+  if(id==='report') renderMorningReport();
 }
 
 // ========== HOLDINGS ==========
@@ -265,7 +266,6 @@ function renderTA(){
     if(a.tp && a.p>=a.tp*0.97) trig.push({t:'sell',tk:a.tk,nm:a.nm,p:a.p,tgt:a.tp,d:`向錢進賣出點達標 (${a.src})`});
   });
   document.getElementById('trigCount').textContent=trig.length||'0';
-  document.getElementById('npip').style.display=trig.length?'block':'none';
   if(!trig.length){el.innerHTML=`<div style="font-family:var(--mono);font-size:16px;color:var(--text-dim);letter-spacing:1px">// NO ALERTS TODAY · ALL CLEAR</div>`;return;}
   el.innerHTML=trig.map(t=>`<div class="arow ${t.t==='buy'?'tbuy':'tsell'}"><div class="aicon" style="background:${t.t==='buy'?'rgba(0,200,150,0.1)':'rgba(255,69,96,0.1)'}"><svg width="13" height="13" viewBox="0 0 13 13">${t.t==='buy'?'<path d="M6.5 2L11 11H2L6.5 2Z" fill="var(--green)"/>':'<path d="M6.5 11L2 2H11L6.5 11Z" fill="var(--red)"/>'}</svg></div><div style="flex:1"><div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${t.t==='buy'?'var(--green)':'var(--red)'}">${t.tk} ${t.nm}</div><div style="font-size:16px;color:var(--text-secondary);margin-top:2px">${t.d}</div></div><div style="text-align:right"><div style="font-family:var(--mono);font-size:16px;font-weight:500">${t.p.toLocaleString()}</div><div style="font-size:12px;color:var(--text-dim);font-family:var(--mono);margin-top:2px">目標 ${t.tgt.toLocaleString()}</div></div></div>`).join('');
 }
@@ -502,103 +502,34 @@ function addAlert(){
 }
 function delA(id){AL=AL.filter(a=>a.id!==id);saveData();renderAL();}
 
-// ========== AI REPORT (Gemini, called direct from browser) ==========
-async function genReport(){
-  const btn=document.getElementById('rfbtn');
-  const sentEl=document.getElementById('rsentiment');
-  const sumEl=document.getElementById('rsummary');
-  const bodyEl=document.getElementById('rbody');
+// ========== MORNING REPORT (synced from LINE push) ==========
+function renderMorningReport(){
+  const mainEl=document.getElementById('mr-main');
+  const sourcesEl=document.getElementById('mr-sources');
+  const atEl=document.getElementById('mr-at');
+  const sourcesPanel=document.getElementById('mr-sources-panel');
+  if(!mainEl) return;
 
-  if(!GEMINI_KEY){
-    sumEl.textContent='找不到 Gemini key。請確認 Google Sheet「設定」分頁有填 gemini_key，然後刷新 Dashboard。';
-    bodyEl.innerHTML='';
+  const r=LAST_MORNING_REPORT;
+  if(!r||!r.main){
+    mainEl.textContent='尚未產生早報。\n每天 08:30 LINE Bot 自動推送，這裡會同步顯示最新一份。\n你也可以在 Apps Script 手動執行 sendMorningReport() 立即產生。';
+    atEl.textContent='—';
+    sourcesPanel.style.display='none';
     return;
   }
-
-  btn.disabled=true;btn.textContent='生成中…';
-  sentEl.textContent='—';sentEl.style.color='var(--text-dim)';
-  sumEl.textContent='Gemini 正在分析你的持倉…';
-  bodyEl.innerHTML=`<div class="loadbar"></div>${[90,70,100,60,80,75,65].map(w=>`<div class="skel" style="width:${w}%"></div>`).join('')}`;
-
-  const today=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
-  const holdStr=H.map(h=>`${h.tk}${h.nm} 現價${h.p} 成本${h.c} ${h.s}股 損益${Math.round((h.p-h.c)*h.s)}`).join('；')||'（無持倉）';
-  const watchStr=AL.filter(a=>a.status!=='sold_profit'&&a.status!=='sold_loss').map(a=>`${a.tk}${a.nm} 買${a.b}/利${a.tp}/損${a.stop} 來源${a.src}`).join('；')||'（無向錢進）';
-  const {wr,total}=calcWR();
-
-  const prompt=`你是 ${OWNER_NAME} 的台灣股市投資顧問，今天是 ${today}。
-
-我的持倉：${holdStr}
-總資產：$${TOTAL_ASSETS.toLocaleString()}
-交易勝率：${wr}%（${total} 筆已結算）
-向錢進清單：${watchStr}
-
-請針對我的具體持倉，用繁體中文回覆**純 JSON**（不要包 markdown code block），格式：
-{
-  "summary": "30 字內針對我持倉的一句話總結",
-  "sentiment": "bullish 或 bearish 或 neutral",
-  "markets": [
-    {"name":"美股 S&P500","change":"+x.x%","note":"對你持倉影響"},
-    {"name":"費城半導體","change":"+x.x%","note":"對你持倉影響"},
-    {"name":"台灣加權","change":"+x.x%","note":"今日台股"},
-    {"name":"USD/TWD","change":"xx.x","note":"匯率影響"},
-    {"name":"美十年債殖利率","change":"x.xx%","note":"利率影響"},
-    {"name":"外資動向","change":"買/賣超xx億","note":"外資態度"}
-  ],
-  "positionAlerts": [
-    {"tk":"代號","title":"今日重點","body":"針對該持倉的具體分析（含成本和股數參考）"}
-  ],
-  "friendAlerts": "針對向錢進清單的評論：哪個合理、哪個謹慎",
-  "suggestion": "3 點具體行動建議",
-  "watch": ["關鍵詞1","關鍵詞2","關鍵詞3"]
-}
-
-注意：你沒有實時市場資料，markets 的數字請用合理推估值（標明「估」字也可），重點放在 positionAlerts 的個股分析和 suggestion 的行動建議。`;
-
-  try{
-    const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key='+encodeURIComponent(GEMINI_KEY);
-    const res=await fetch(url,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        contents:[{parts:[{text:prompt+'\n\n請先用 Google Search 搜尋當天美股、台股、半導體、匯率的真實收盤/開盤數據再回答。markets 欄位的數字必須來自搜尋結果。'}]}],
-        tools:[{google_search:{}}],
-        generationConfig:{maxOutputTokens:6000,temperature:0.7,thinkingConfig:{thinkingBudget:0}}
-      })
-    });
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    const cand=data.candidates?.[0];
-    const text=cand?.content?.parts?.map(p=>p.text).join('')||'';
-    // Extract JSON from response (may be wrapped in markdown)
-    const jsonMatch=text.match(/\{[\s\S]*\}/);
-    if(!jsonMatch) throw new Error('No JSON in response');
-    const r=JSON.parse(jsonMatch[0]);
-    // Grounding sources
-    const sources=cand?.groundingMetadata?.groundingChunks?.map(c=>c.web).filter(Boolean)||[];
-
-    const sm={bullish:{l:'看漲 BULL',c:'var(--green)'},bearish:{l:'看跌 BEAR',c:'var(--red)'},neutral:{l:'中性 FLAT',c:'var(--amber)'}};
-    const sv=sm[r.sentiment]||sm.neutral;
-    sentEl.textContent=sv.l;
-    sentEl.style.color=sv.c;
-    sumEl.textContent=r.summary;
-
-    const mH=(r.markets||[]).map(m=>{const u=String(m.change).startsWith('+'),d=String(m.change).startsWith('-');const col=u?'var(--green)':d?'var(--red)':'var(--amber)';return`<div class="mcell"><div class="mcell-name">${m.name}</div><div class="mcell-val" style="color:${col}">${m.change}</div><div class="mcell-note">${m.note||''}</div></div>`;}).join('');
-    const paH=(r.positionAlerts||[]).map(pa=>`<div class="ecard"><div class="etag">[ ${pa.tk} ] ${pa.title}</div><div class="ebody">${pa.body}</div></div>`).join('');
-    const wH=(r.watch||[]).map(w=>`<span class="wword">${w}</span>`).join('');
-
-    bodyEl.innerHTML=`
-      <div class="mktgrid">${mH}</div>
-      <div class="panel" style="margin-bottom:12px"><div class="phead"><div class="plabel">你的持倉今日分析</div><span style="font-family:var(--mono);font-size:12px;color:rgba(0,229,204,0.5);letter-spacing:1px">PERSONALIZED</span></div><div style="padding:14px 16px">${paH}</div></div>
-      <div class="ecard" style="border-left-color:var(--purple);margin-bottom:12px"><div class="etag" style="color:var(--purple)">[ 向錢進評估 ] 今日清單怎麼看</div><div class="ebody">${r.friendAlerts||'—'}</div></div>
-      <div style="margin-bottom:12px;padding:13px 15px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r)"><div style="font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--text-dim);margin-bottom:9px">WATCH KEYWORDS</div>${wH}</div>
-      <div class="ibox"><div class="ilbl">AI 給你的 3 點行動建議</div><div class="ibody" style="white-space:pre-line">${r.suggestion||'—'}</div></div>
-      ${sources.length ? `<div style="margin-top:12px;padding:13px 15px;background:var(--surface);border:1px solid var(--edge);border-radius:var(--r)"><div style="font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--text-dim);margin-bottom:8px">🔍 GOOGLE SEARCH 引用來源（${sources.length}）</div>${sources.slice(0,8).map(s=>`<a href="${s.uri}" target="_blank" style="display:block;font-size:13px;color:var(--blue);text-decoration:none;padding:4px 0;border-bottom:1px solid rgba(26,37,53,0.5)">${s.title||s.uri}</a>`).join('')}</div>` : ''}
-      <div style="margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--text-dim);text-align:center">✨ 使用 Google Search Grounding · 資料來自即時搜尋</div>`;
-  }catch(e){
-    bodyEl.innerHTML=`<div style="font-family:var(--mono);font-size:14px;color:var(--red);padding:20px 0">// ERROR: ${e.message}<br><span style="font-size:12px;color:var(--text-dim)">檢查 gemini_key 是否正確</span></div>`;
-    sumEl.textContent='生成失敗，請重試';
+  mainEl.textContent=r.main;
+  if(r.sources){
+    sourcesEl.textContent=r.sources;
+    sourcesPanel.style.display='';
+  } else {
+    sourcesPanel.style.display='none';
   }
-  btn.disabled=false;btn.textContent='▶ 重新生成';
+  if(r.at){
+    const d=new Date(r.at);
+    atEl.textContent=isNaN(d)?r.at:d.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  } else {
+    atEl.textContent='—';
+  }
 }
 
 // ========== ALLOCATION HISTORY ==========
@@ -894,7 +825,7 @@ function addDcaPlan(){
 function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
 
 // ========== INIT ==========
-function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();}
+function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}
 
 async function bootstrap(){
   const cloud = await loadFromCloud();
