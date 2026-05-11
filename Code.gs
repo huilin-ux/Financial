@@ -1015,7 +1015,8 @@ function testAll() {
  * 一次設定 Rich Menu：建立 / 上傳圖片 / 設為全使用者預設。
  * 改下面的 RICH_MENU_IMAGE_URL 為你 catbox 上的圖網址，然後執行這個函式一次即可。
  */
-const RICH_MENU_IMAGE_URL = 'https://files.catbox.moe/CHANGE_ME.png';
+// Kate 的圖原本 1527x1030 又超過 1MB，透過 images.weserv.nl 即時 resize 到 LINE 規格
+const RICH_MENU_IMAGE_URL = 'https://images.weserv.nl/?url=files.catbox.moe/6f0drw.png&w=2500&h=1686&fit=cover&output=jpg&q=88';
 
 function setupRichMenu() {
   const cfg = getConfig();
