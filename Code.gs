@@ -689,6 +689,20 @@ function fmtPct_(p) {
 
 // ========== 推播功能 1：每日早報 ==========
 
+function shortenUrl(url) {
+  try {
+    const res = UrlFetchApp.fetch(
+      'https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url),
+      { muteHttpExceptions: true }
+    );
+    const short = res.getContentText().trim();
+    if (short.startsWith('https://tinyurl.com/')) return short;
+    return url;
+  } catch(e) {
+    return url;
+  }
+}
+
 function sendMorningReport() {
   try {
     const cfg = getConfig();
@@ -697,82 +711,85 @@ function sendMorningReport() {
     const watchlist = getWatchlist();
     const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy年M月d日 EEEE');
 
-    // 1. 算每支持倉的當天損益
-    let totalCost = 0, totalValue = 0;
+    // 算持倉損益
+    let totalPnl = 0;
     const holdingLines = holdings.map(h => {
       const price = getPrice(h.stock_tk) || h.cost;
-      const cost = h.cost * h.shares;
-      const value = price * h.shares;
-      totalCost += cost;
-      totalValue += value;
-      const pnl = value - cost;
-      const pnlPct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
-      return `- ${h.stock_nm}(${h.stock_tk}) 現價 ${price}, 成本 ${h.cost}, 損益 ${pnl.toFixed(0)} (${pnlPct}%)`;
+      const pnl = (price - h.cost) * h.shares;
+      const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
+      totalPnl += pnl;
+      return `${h.stock_nm}(${h.stock_tk}) 現價$${price} 損益${pnl>=0?'+':''}${Math.round(pnl)}(${pnl>=0?'+':''}${pct}%)`;
     }).join('\n') || '（無持倉）';
-    const totalPnl = totalValue - totalCost;
 
-    // 2. 算向錢進距離
+    // 算向錢進距離
     const watchLines = watchlist.map(w => {
       const price = getPrice(w.stock_tk) || w.buy_price;
-      const isHolding = w.status === 'holding';
-      if (isHolding && w.take_profit) {
-        const dist = ((w.take_profit - price) / price * 100).toFixed(1);
-        return `- ${w.stock_nm}(${w.stock_tk}) [持有中] 現價 ${price}, 距停利 ${w.take_profit} 還差 ${dist}%`;
-      } else {
-        // watching: 現價距買入價的 %
-        const dist = ((price - w.buy_price) / w.buy_price * 100).toFixed(1);
-        const status = parseFloat(dist) > 3 ? '🟡 等待' : parseFloat(dist) > -3 ? '🟢 接近' : '🔴 已達標';
-        return `- ${w.stock_nm}(${w.stock_tk}) [追蹤中] 現價 ${price}, 買入價 ${w.buy_price} (距離 ${dist}%) ${status} | 來源:${w.source}`;
-      }
+      const distBuy = w.buy_price > 0 ? ((price - w.buy_price) / w.buy_price * 100).toFixed(1) : '?';
+      return `${w.stock_nm}(${w.stock_tk}) 現價$${price} 買入$${w.buy_price}(距${distBuy}%) 停利$${w.take_profit||'?'} 停損$${w.stop_loss||'?'} 狀態:${w.status}`;
     }).join('\n') || '（無向錢進清單）';
 
-    // 3. 組 prompt
     const prompt =
-`今天是 ${today}。請先用 Google Search 搜尋這些實時資料：
-1. 昨日美股 S&P500 / Nasdaq / 費城半導體指數收盤漲跌幅
+`你是${owner}的投資助理，今天是${today}。
+請先用 Google Search 搜尋：
+1. 昨日美股 S&P500 / 費城半導體收盤漲跌幅
 2. 今日 USD/TWD 匯率
-3. 昨日台股外資買超/賣超金額（億元）
-4. 今日對台股有影響的重大新聞（Fed / 半導體 / 地緣政治）
+3. 昨日台股外資買超/賣超金額
+4. 今日對台股影響的重大新聞
 
-【${owner} 的持倉（含現價）】
+【持倉資料】
 ${holdingLines}
 
-【向錢進清單（已算好距離 %）】
+【向錢進清單】
 ${watchLines}
 
-【總未實現損益】${totalPnl.toFixed(0)} 元
+【總未實現損益】${totalPnl>=0?'+':''}${Math.round(totalPnl)} 元
 
-請嚴格按照下面格式產出（**不要用 markdown 粗體 ** 符號，用全形分隔，整體 250 字以內**）：
+輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 280 字）：
 
 ☀️ 投資阿喵共・今日早報
 🌅 早安 ${owner}！
 
 【市場概況】
-・美股 S&P500：+x.xx%（一句話對台股影響）
-・費城半導體：+x.xx%（一句話對科技持倉影響）
-・台幣匯率：xx.x（升/貶，對出口股影響）
-・外資：買超/賣超 xx 億（市場情緒）
+・美股 S&P500：（填入數字）（對台股影響一句話）
+・費城半導體：（填入數字）（對科技持倉影響一句話）
+・台幣匯率：（填入數字）（升/貶影響一句話）
+・外資：（填入數字）（市場情緒一句話）
 
 【你的持倉今天】
-（每支持倉一行，結合搜到的產業新聞給具體影響，不要說廢話，結尾加 👍 或 ⚠️）
+（每支一行，格式：・名稱(代號) 現價$x 損益+/-$x(+/-x%) → 今天影響 👍/⚠️）
 
 【向錢進狀態】
-（每支一行，直接用我給你的距離 %，標 🟡等待 / 🟢接近 / 🔴達標）
+（每支一行，格式：・名稱(代號) 現價$x 買入$x（距x%）🟢/🟡/🔴 一句話）
+（距買入價 <5% 用 🟢接近了，5-20% 用 🟡等待，>20% 或低於買入價用 🔴）
 
 【今天只需要做一件事】
-→ 一句話具體行動，30 字以內
+→ 一個具體行動，不超過20字
 
-💪 一句鼓勵的話，根據總損益 ${totalPnl.toFixed(0)} 元調整語氣（賺錢稱讚眼光、虧損溫柔安慰）
+💪 根據總損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元：賺錢稱讚${owner}眼光準，虧損溫暖鼓勵，一句話`;
 
-注意：
-- 數字必須來自 Google Search 結果，不要瞎掰
-- 持倉分析要扣到當天搜到的新聞，例如「費城半導體大漲→台積電可能跟漲」
-- 不要 markdown 粗體（LINE 不支援）
-- 字數含換行 ≤ 250 字`;
+    const mainMsg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
 
-    const msg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
-    const full = msg + formatGroundingFooter_();
-    sendLine(cfg.line_token, full, cfg.line_user_id);
+    // 第二則：來源（取 Gemini grounding 真實 URL 縮短）
+    const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+    let sourceLines;
+    if (LAST_GROUNDING && LAST_GROUNDING.sources && LAST_GROUNDING.sources.length) {
+      sourceLines = LAST_GROUNDING.sources.slice(0, 5).map(s => {
+        const label = (s.title || '來源').slice(0, 20);
+        return `・${label}：${shortenUrl(s.uri)}`;
+      }).join('\n');
+    } else {
+      sourceLines = [
+        `・S&P500 / Nasdaq：${shortenUrl('https://finance.yahoo.com')}`,
+        `・費城半導體：${shortenUrl('https://www.marketwatch.com/investing/index/sox')}`,
+        `・台幣匯率：${shortenUrl('https://tw.tradingeconomics.com/taiwan/currency')}`,
+        `・外資動向：${shortenUrl('https://www.twse.com.tw/zh/trading/foreign/fmtqik.html')}`
+      ].join('\n');
+    }
+    const sourceMsg = `📰 今日資料來源\n${sourceLines}\n⏱ ${now}`;
+
+    sendLine(cfg.line_token, mainMsg, cfg.line_user_id);
+    Utilities.sleep(1000);
+    sendLine(cfg.line_token, sourceMsg, cfg.line_user_id);
   } catch (err) {
     Logger.log('sendMorningReport 失敗：' + err.message);
   }
