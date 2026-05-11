@@ -89,7 +89,7 @@
 
 1. **建立試算表**：依上方四個工作表結構建立 Google Sheets，把金鑰填入「設定」工作表。
 2. **建立 Apps Script**：在 Sheets 選 `擴充功能 → Apps Script`，把 `Code.gs` 內容整份貼上。
-3. **填入 SHEET_ID**：把檔案頂端的 `SHEET_ID` 改成你試算表的 ID。
+3. **（已自動處理）**腳本透過「擴充功能 → Apps Script」綁定 Sheet，不需手動填 SHEET_ID。若要用其他 Sheet，請在「專案設定 → 指令碼屬性」新增 `sheet_id`。
 4. **執行 `testAll`**：在 Apps Script 編輯器選擇函式 `testAll` → 執行。第一次會要求授權（Sheets / 外部 API）。看到 LINE 收到 `投資阿喵嘎哩共 連線測試成功 ✅` 即代表 OK。
 5. **執行 `setupTriggers`**：再次執行函式 `setupTriggers`，自動建立四個排程。完成後在「觸發條件」頁可看到 4 筆。
 

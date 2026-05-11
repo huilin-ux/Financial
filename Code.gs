@@ -10,10 +10,23 @@
  */
 
 // ========== 設定區 ==========
-const SHEET_ID = '1-7Oj89r9WQshp-ShwEVSthJoChBrdgvvJP2YITasDiU';
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const FINMIND_BASE = 'https://api.finmindtrade.com/api/v4/data';
 const API_KEY = 'meow-cat-financial-2026';
+
+/**
+ * 取得綁定的 Sheet。預設用「擴充功能 → Apps Script」綁定的容器 Sheet。
+ * 想用其他 Sheet 的話，在 Apps Script「專案設定 → 指令碼屬性」加一個
+ *   sheet_id = <你的 Sheet ID>
+ * 即可覆寫。
+ */
+function getSheet_() {
+  const override = PropertiesService.getScriptProperties().getProperty('sheet_id');
+  if (override) return SpreadsheetApp.openById(override);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('找不到綁定的 Sheet，請從 Google Sheet 進入「擴充功能 → Apps Script」建立腳本');
+  return ss;
+}
 
 // ========== Web API（Dashboard 用）==========
 
@@ -238,7 +251,7 @@ function doAddWatch_(d) {
 }
 
 function appendTradeRow_(r) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   let sh = ss.getSheetByName('交易記錄');
   if (!sh) {
     sh = ss.insertSheet('交易記錄');
@@ -248,7 +261,7 @@ function appendTradeRow_(r) {
 }
 
 function appendWatchRow_(r) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   let sh = ss.getSheetByName('向錢進');
   if (!sh) {
     sh = ss.insertSheet('向錢進');
@@ -288,7 +301,7 @@ function apiResp_(obj) {
  */
 function getConfig() {
   try {
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('設定');
+    const sh = getSheet_().getSheetByName('設定');
     if (!sh) throw new Error('找不到「設定」工作表');
     const data = sh.getDataRange().getValues();
     const cfg = {};
@@ -310,7 +323,7 @@ function getConfig() {
  */
 function getHoldings() {
   try {
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('持倉');
+    const sh = getSheet_().getSheetByName('持倉');
     if (!sh) throw new Error('找不到「持倉」工作表');
     const data = sh.getDataRange().getValues();
     const rows = [];
@@ -338,7 +351,7 @@ function getHoldings() {
  */
 function getWatchlist() {
   try {
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('向錢進');
+    const sh = getSheet_().getSheetByName('向錢進');
     if (!sh) throw new Error('找不到「向錢進」工作表');
     const data = sh.getDataRange().getValues();
     const rows = [];
@@ -369,7 +382,7 @@ function getWatchlist() {
  */
 function getDCA() {
   try {
-    const sh = SpreadsheetApp.openById(SHEET_ID).getSheetByName('定期定額');
+    const sh = getSheet_().getSheetByName('定期定額');
     if (!sh) throw new Error('找不到「定期定額」工作表');
     const data = sh.getDataRange().getValues();
     const rows = [];
@@ -397,7 +410,7 @@ function getDCA() {
  */
 function getTrades() {
   try {
-    const ss = SpreadsheetApp.openById(SHEET_ID);
+    const ss = getSheet_();
     let sh = ss.getSheetByName('交易記錄');
     if (!sh) {
       sh = ss.insertSheet('交易記錄');
@@ -429,7 +442,7 @@ function getTrades() {
 // ========== 寫入函式（doPost 用）==========
 
 function writeHoldings_(rows) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   const sh = ss.getSheetByName('持倉') || ss.insertSheet('持倉');
   sh.clear();
   sh.appendRow(['stock_tk', 'stock_nm', 'shares', 'cost', 'buy_alert', 'sell_alert']);
@@ -439,7 +452,7 @@ function writeHoldings_(rows) {
 }
 
 function writeWatchlist_(rows) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   const sh = ss.getSheetByName('向錢進') || ss.insertSheet('向錢進');
   sh.clear();
   sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status']);
@@ -450,7 +463,7 @@ function writeWatchlist_(rows) {
 }
 
 function writeDCA_(rows) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   const sh = ss.getSheetByName('定期定額') || ss.insertSheet('定期定額');
   sh.clear();
   sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active']);
@@ -461,7 +474,7 @@ function writeDCA_(rows) {
 }
 
 function writeTrades_(rows) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   const sh = ss.getSheetByName('交易記錄') || ss.insertSheet('交易記錄');
   sh.clear();
   sh.appendRow(['date', 'type', 'stock_tk', 'stock_nm', 'shares', 'price', 'source', 'pnl']);
@@ -473,7 +486,7 @@ function writeTrades_(rows) {
 }
 
 function writeConfig_(cfg) {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+  const ss = getSheet_();
   const sh = ss.getSheetByName('設定') || ss.insertSheet('設定');
   const existing = getConfig();
   const merged = Object.assign({}, existing, cfg);

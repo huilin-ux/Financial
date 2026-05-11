@@ -81,9 +81,9 @@ owner_name	你的名字
 - 格式 → 數字 → **純文字**
 - 重新打 `006208`
 
-### 1-3 複製 SHEET_ID
+### 1-3 SHEET_ID（不用記，可略過）
 
-網址列看到 `https://docs.google.com/spreadsheets/d/【這一串】/edit`，**那串就是 SHEET_ID**，先記在筆記本。
+新版本程式碼會自動讀取你綁定的 Sheet，不需要手動填 SHEET_ID。直接進 Step 2。
 
 ---
 
@@ -173,8 +173,9 @@ owner_name	你的名字
 2. 開這個連結，整個頁面內容**全選複製**：
    <https://raw.githubusercontent.com/huilin-ux/Financial/main/Code.gs>
 3. 貼回 Apps Script 編輯區
-4. **找到第一行 `const SHEET_ID = '...'`，把單引號裡那串改成你的 SHEET_ID**（Step 1-3 記的那串）
-5. 按 💾 儲存
+4. 按 💾 儲存
+
+> ✨ 不用填 SHEET_ID。因為你是從 Google Sheet 用「擴充功能 → Apps Script」開的，腳本已經自動綁定你那份 Sheet 了。
 
 ### 4-3 跑測試
 
@@ -403,7 +404,7 @@ LINE Messaging API 免費版每月 200 則訊息。
 - [ ] Google Sheet 4 個分頁建好
 - [ ] Gemini API Key 已填到 Sheet
 - [ ] LINE Bot 建好，加為好友
-- [ ] Apps Script 貼好程式碼 + SHEET_ID 改好
+- [ ] Apps Script 貼好程式碼
 - [ ] 跑 `testAll` LINE 收到測試訊息
 - [ ] 跑 `setupTriggers` 看到 4 個排程
 - [ ] Web App 部署完，URL 拿到手
