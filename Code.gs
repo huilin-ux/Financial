@@ -92,7 +92,7 @@ function doPost(e) {
     // Dashboard cloud-sync
     if (body.key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
     if (body.holdings) writeHoldings_(body.holdings);
-    if (body.watchlist) writeWatchlist_(body.watchlist);
+    if (body.watchlist) writeWatchlist_(body.watchlist, body.watchlist_deleted);
     if (body.dca) writeDCA_(body.dca);
     if (body.trades) writeTrades_(body.trades);
     if (body.config) writeConfig_(body.config);
@@ -482,14 +482,59 @@ function writeHoldings_(rows) {
   ]));
 }
 
-function writeWatchlist_(rows) {
+function writeWatchlist_(rows, deletedKeys) {
   const ss = getSheet_();
   const sh = ss.getSheetByName('向錢進') || ss.insertSheet('向錢進');
+
+  // Read existing rows + header so we don't wipe items the caller hasn't seen
+  // (e.g. ones the LINE Bot just appended while the dashboard was offline).
+  const data = sh.getDataRange().getValues();
+  const headerRow = (data[0] && data[0].length >= 7) ? data[0]
+    : ['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares'];
+  const planSharesIdx = headerRow.findIndex(h => String(h).trim() === 'plan_shares');
+  const existing = {};
+  for (let i = 1; i < data.length; i++) {
+    const tk = String(data[i][0] || '').trim();
+    if (!tk) continue;
+    existing[tk] = {
+      stock_tk: tk,
+      stock_nm: String(data[i][1] || '').trim(),
+      buy_price: Number(data[i][2]) || 0,
+      take_profit: Number(data[i][3]) || 0,
+      stop_loss: Number(data[i][4]) || 0,
+      source: String(data[i][5] || '').trim(),
+      status: String(data[i][6] || 'watching').trim(),
+      plan_shares: planSharesIdx >= 0 ? (Number(data[i][planSharesIdx]) || 0) : 0
+    };
+  }
+
+  // Apply payload as upsert (incoming wins on conflicts)
+  (rows || []).forEach(r => {
+    const tk = String(r.stock_tk || '').trim();
+    if (!tk) return;
+    existing[tk] = {
+      stock_tk: tk,
+      stock_nm: r.stock_nm || '',
+      buy_price: Number(r.buy_price) || 0,
+      take_profit: Number(r.take_profit) || 0,
+      stop_loss: Number(r.stop_loss) || 0,
+      source: r.source || '',
+      status: r.status || 'watching',
+      plan_shares: Number(r.plan_shares) || 0
+    };
+  });
+
+  // Explicit deletes (client must opt-in by sending watchlist_deleted)
+  (deletedKeys || []).forEach(k => {
+    const tk = String(k || '').trim();
+    if (tk) delete existing[tk];
+  });
+
   sh.clear();
   sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares']);
-  rows.forEach(r => sh.appendRow([
-    r.stock_tk || '', r.stock_nm || '', r.buy_price || 0, r.take_profit || 0,
-    r.stop_loss || 0, r.source || '', r.status || 'watching', r.plan_shares || 0
+  Object.values(existing).forEach(r => sh.appendRow([
+    r.stock_tk, r.stock_nm, r.buy_price, r.take_profit,
+    r.stop_loss, r.source, r.status, r.plan_shares
   ]));
 }
 
