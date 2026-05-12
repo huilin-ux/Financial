@@ -54,10 +54,16 @@ function getSheet_() {
 
 // ========== Web API（Dashboard 用）==========
 
+/**
+ * Web App URL acts as the secret (Apps Script deployment id is a random,
+ * unguessable string). The optional `api_key` row in the 設定 sheet is no
+ * longer enforced — it caused real pain (every new browser had to be
+ * bootstrapped with the same key, no way to share with friends). If a
+ * future user wants extra auth, prefer LINE-style signature verification.
+ */
 function doGet(e) {
   try {
     const p = e.parameter || {};
-    if (p.key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
     // Stock name lookup: ?action=name&tk=2465
     if (p.action === 'name' && p.tk) {
       return apiResp_({ name: getStockName(p.tk) || '' });
@@ -94,8 +100,7 @@ function doPost(e) {
       return apiResp_({ ok: true });
     }
 
-    // Dashboard cloud-sync
-    if (body.key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
+    // Dashboard cloud-sync (no api_key check — URL secrecy is the auth)
     if (body.holdings) writeHoldings_(body.holdings);
     if (body.watchlist) writeWatchlist_(body.watchlist, body.watchlist_deleted);
     if (body.dca) writeDCA_(body.dca);
