@@ -51,7 +51,7 @@ async function saveToCloud() {
     const body = {
       key: getCloudApiKey(),
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
-      watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status})),
+      watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status,exit_price:a.exit_price||0,exit_date:a.exit_date||''})),
       watchlist_deleted: getDeletedWatchKeys_(),
       dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending,owner:d.owner||'自己'})),
       trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
@@ -81,7 +81,7 @@ async function saveToCloud() {
 
 function cloudToLocal_(data) {
   const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:Number(r.price)||r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
-  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,shares:Number(r.plan_shares)||0,src:r.source,note:'',status:r.status,p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
+  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,shares:Number(r.plan_shares)||0,src:r.source,note:'',status:r.status,exit_price:Number(r.exit_price)||0,exit_date:r.exit_date||'',p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
   const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,owner:r.owner||'自己',pending:!r.active}));
   const cfg = data.config || {};
@@ -518,24 +518,64 @@ function deleteDcaStock(tk){
   saveData(); renderDCA();
 }
 
+// Auto-derive trades from 向錢進 entries so users don't have to
+// hand-record every BUY twice. Anything in AL with shares + buy_price
+// counts as a BUY trade; sold_* entries with an exit_price recorded
+// also emit a paired SELL with realized P&L. Manual TRADES win on
+// duplicates (same tk + type + matching price), so legacy hand-added
+// rows are preserved.
+function getUnifiedTrades(){
+  const out=TRADES.map(t=>({...t}));
+  const same=(a,b)=>Math.abs(Number(a)-Number(b))<0.01;
+  AL.forEach(a=>{
+    if(!(a.shares>0&&a.b>0)) return;
+    const tracked=a.status==='holding'||a.status==='sold_profit'||a.status==='sold_loss';
+    if(!tracked) return;
+    if(!TRADES.some(t=>t.type==='buy'&&t.tk===a.tk&&same(t.price,a.b))){
+      out.push({
+        id:'al-buy-'+a.id, tk:a.tk, nm:a.nm,
+        type:'buy', price:a.b, shares:a.shares,
+        date:a.entered_date||'—', src:a.src||'自己分析',
+        pnl:null, _from:'向錢進', _alId:a.id
+      });
+    }
+    if((a.status==='sold_profit'||a.status==='sold_loss')&&a.exit_price){
+      if(!TRADES.some(t=>t.type==='sell'&&t.tk===a.tk&&same(t.price,a.exit_price))){
+        out.push({
+          id:'al-sell-'+a.id, tk:a.tk, nm:a.nm,
+          type:'sell', price:a.exit_price, shares:a.shares,
+          date:a.exit_date||'—', src:a.src||'自己分析',
+          pnl:(a.exit_price-a.b)*a.shares,
+          _from:'向錢進', _alId:a.id
+        });
+      }
+    }
+  });
+  return out;
+}
+
 function calcWR(){
-  const cl=TRADES.filter(t=>t.pnl!==null);
+  const cl=getUnifiedTrades().filter(t=>t.pnl!==null);
   if(!cl.length) return {wr:0,total:0,pnl:0};
   const w=cl.filter(t=>t.pnl>0).length;
   return {wr:(w/cl.length*100).toFixed(0),total:cl.length,pnl:cl.reduce((s,t)=>s+t.pnl,0)};
 }
 
 function renderLog(){
+  const trades=getUnifiedTrades();
   const {wr,pnl}=calcWR();
   document.getElementById('totalWR').textContent=wr+'%';
   document.getElementById('totalWR').className='sval '+(parseFloat(wr)>=50?'up':'dn');
   document.getElementById('totalRPnl').textContent=(pnl>=0?'+':'')+pnl.toLocaleString();
   document.getElementById('totalRPnl').className='sval '+(pnl>=0?'up':'dn');
   const srcMap={};
-  TRADES.filter(t=>t.pnl!==null).forEach(t=>{if(!srcMap[t.src])srcMap[t.src]={wins:0,total:0,pnl:0};srcMap[t.src].total++;if(t.pnl>0)srcMap[t.src].wins++;srcMap[t.src].pnl+=t.pnl;});
+  trades.filter(t=>t.pnl!==null).forEach(t=>{if(!srcMap[t.src])srcMap[t.src]={wins:0,total:0,pnl:0};srcMap[t.src].total++;if(t.pnl>0)srcMap[t.src].wins++;srcMap[t.src].pnl+=t.pnl;});
   document.getElementById('wrBody').innerHTML=Object.entries(srcMap).map(([src,d])=>{const w2=(d.wins/d.total*100).toFixed(0),col=parseFloat(w2)>=50?'var(--green)':'var(--red)';return`<div class="wr-card"><div class="wr-name">${src}</div><div class="wr-bar-wrap"><div class="wr-bar"><div class="wr-win" style="width:${w2}%"></div><div class="wr-loss" style="width:${100-w2}%"></div></div><span style="font-family:var(--mono);font-size:16px;font-weight:700;color:${col};width:34px;text-align:right">${w2}%</span></div><div class="wr-stat"><span>${d.total} 筆</span><span>${d.wins}勝${d.total-d.wins}敗</span><span style="color:${d.pnl>=0?'var(--green)':'var(--red)'}">${d.pnl>=0?'+':''}${d.pnl.toLocaleString()}</span></div></div>`;}).join('')||`<div style="font-family:var(--mono);font-size:16px;color:var(--text-dim)">// 尚無結算記錄</div>`;
-  const sorted=[...TRADES].sort((a,b)=>new Date(b.date)-new Date(a.date));
-  document.getElementById('tlogBody').innerHTML=sorted.map(t=>`<div class="tlog-row"><span class="tlog-type ${t.type==='buy'?'tlog-buy':'tlog-sell'}">${t.type==='buy'?'BUY':'SELL'}</span><div style="flex:1;min-width:0"><div class="tlog-tk">${t.tk} <span style="font-size:13px;font-weight:400;color:var(--text-secondary)">${t.nm}</span></div><div class="tlog-meta">${t.date} · ${t.shares}股 · ${t.src}</div></div><div><div class="tlog-price" style="color:${t.type==='buy'?'var(--amber)':'var(--text-primary)'}">$${t.price.toLocaleString()}</div>${t.pnl!==null?`<div class="tlog-pnl ${t.pnl>=0?'up':'dn'}">${t.pnl>=0?'+':''}${t.pnl.toLocaleString()}</div>`:'<div class="tlog-pnl" style="color:var(--text-dim)">持有中</div>'}</div></div>`).join('');
+  const sorted=[...trades].sort((a,b)=>{const ad=a.date&&a.date!=='—'?new Date(a.date):new Date(0);const bd=b.date&&b.date!=='—'?new Date(b.date):new Date(0);return bd-ad;});
+  document.getElementById('tlogBody').innerHTML=sorted.map(t=>{
+    const fromBadge=t._from?`<span style="font-family:var(--mono);font-size:10px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:8px;margin-left:6px">🎯 ${t._from}</span>`:'';
+    return `<div class="tlog-row"><span class="tlog-type ${t.type==='buy'?'tlog-buy':'tlog-sell'}">${t.type==='buy'?'BUY':'SELL'}</span><div style="flex:1;min-width:0"><div class="tlog-tk">${t.tk} <span style="font-size:13px;font-weight:400;color:var(--text-secondary)">${t.nm}</span>${fromBadge}</div><div class="tlog-meta">${t.date} · ${t.shares}股 · ${t.src}</div></div><div><div class="tlog-price" style="color:${t.type==='buy'?'var(--amber)':'var(--text-primary)'}">$${t.price.toLocaleString()}</div>${t.pnl!==null?`<div class="tlog-pnl ${t.pnl>=0?'up':'dn'}">${t.pnl>=0?'+':''}${t.pnl.toLocaleString()}</div>`:'<div class="tlog-pnl" style="color:var(--text-dim)">持有中</div>'}</div></div>`;
+  }).join('');
 }
 
 function openTradeModal(){renderAllSrcChips();document.getElementById('tm-date').value=new Date().toISOString().split('T')[0];document.getElementById('tradeModal').classList.add('open');}
@@ -639,7 +679,24 @@ function renderAL(){
   }).join('');
 }
 
-function setALStatus(id,newStatus){const a=AL.find(x=>x.id===id);if(a){a.status=newStatus;saveData();renderAL();renderTA();}}
+function setALStatus(id,newStatus){
+  const a=AL.find(x=>x.id===id); if(!a) return;
+  if(newStatus==='sold_profit'||newStatus==='sold_loss'){
+    if(!a.exit_price){
+      const dflt=a.p||a.b;
+      const input=prompt(`賣出價是多少？\n（預設為當前股價 $${dflt}，可改）`, dflt);
+      if(input===null) return;
+      const px=parseFloat(input);
+      if(!px||px<=0){ alert('賣出價必須是大於 0 的數字'); return; }
+      a.exit_price=px;
+      a.exit_date=new Date().toISOString().split('T')[0];
+    }
+  } else if(a.status==='sold_profit'||a.status==='sold_loss'){
+    delete a.exit_price; delete a.exit_date;
+  }
+  a.status=newStatus;
+  saveData();renderAL();renderTA();renderLog();
+}
 function clearSrcChips(){document.querySelectorAll('#srcChips .src-chip').forEach(c=>c.classList.remove('selected'));}
 function toggleForm(){
   const p=document.getElementById('addpanel');
@@ -693,7 +750,7 @@ function addAlert(){
   clearSrcChips();
   document.getElementById('addpanel').classList.remove('open');
   resetAlertFormUI();
-  saveData(); renderAL();
+  saveData(); renderAL(); renderLog();
 }
 function getDeletedWatchKeys_(){try{return JSON.parse(localStorage.getItem('al_deleted_keys')||'[]');}catch(e){return [];}}
 function addDeletedWatchKey_(tk){const keys=getDeletedWatchKeys_();if(!keys.includes(tk)){keys.push(tk);localStorage.setItem('al_deleted_keys',JSON.stringify(keys));}}
@@ -705,7 +762,7 @@ function delA(id){
   if(!confirm(`確定要刪除「${a.tk} ${nm}」這筆向錢進嗎？\n\n此操作無法復原（含買進價 / 停利 / 停損 / 筆記都會消失）。`)) return;
   if(a.tk) addDeletedWatchKey_(a.tk);
   AL=AL.filter(x=>x.id!==id);
-  saveData();renderAL();
+  saveData();renderAL();renderLog();
 }
 
 // ========== MORNING REPORT (synced from LINE push) ==========
