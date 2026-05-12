@@ -139,9 +139,47 @@ let dcaNextId    = saved ? saved.dcaNextId    : 1;
 
 
 // ========== SUMMARY STATS ==========
+// ========== UNIFIED HOLDINGS ==========
+// Merge manual H[] + 向錢進 持有中 + DCA confirmed entries by ticker.
+// Manual entries are the only ones that get full features (buy/sell alerts,
+// edit/delete on the 持倉 tab); others are read-only here and must be
+// edited in their source tab. Used by renderH / renderSummaryStats /
+// renderRisk / renderAllocation so every aggregate reflects everything
+// the user actually owns.
+function getUnifiedHoldings(){
+  const map={};
+  H.forEach((h,idx)=>{
+    map[h.tk]={
+      tk:h.tk, nm:h.nm,
+      s:h.s||0, _tc:(h.s||0)*(h.c||0),
+      p:h.p, b:h.b, sl:h.sl, _spark:h._spark,
+      sources:new Set(['持倉']), manualIdx:idx
+    };
+  });
+  AL.filter(a=>a.status==='holding'&&a.shares>0&&a.b>0).forEach(a=>{
+    if(!map[a.tk]) map[a.tk]={tk:a.tk,nm:a.nm,s:0,_tc:0,p:a.p,b:null,sl:null,sources:new Set(),manualIdx:-1};
+    map[a.tk].s+=a.shares;
+    map[a.tk]._tc+=a.shares*a.b;
+    map[a.tk].sources.add('向錢進');
+    if(!map[a.tk].p&&a.p) map[a.tk].p=a.p;
+  });
+  DCA_ENTRIES.filter(e=>!e.pending&&e.price&&e.shares).forEach(e=>{
+    if(!map[e.tk]) map[e.tk]={tk:e.tk,nm:e.nm,s:0,_tc:0,p:null,b:null,sl:null,sources:new Set(),manualIdx:-1};
+    map[e.tk].s+=e.shares;
+    map[e.tk]._tc+=e.shares*e.price;
+    map[e.tk].sources.add('DCA');
+    // Approximate live price from latest DCA tick if no other source provided one
+    if(!map[e.tk].p) map[e.tk].p=e.price;
+  });
+  return Object.values(map)
+    .map(m=>({...m, c:m.s>0?m._tc/m.s:0, sources:[...m.sources]}))
+    .filter(m=>m.s>0);
+}
+
 function renderSummaryStats(){
-  const totalVal = H.reduce((s,h)=>s+h.p*h.s, 0);
-  const totalCost = H.reduce((s,h)=>s+h.c*h.s, 0);
+  const U=getUnifiedHoldings();
+  const totalVal = U.reduce((s,h)=>s+(h.p||h.c)*h.s, 0);
+  const totalCost = U.reduce((s,h)=>s+h.c*h.s, 0);
   const totalPnl = totalVal - totalCost;
   const retPct = totalCost ? (totalPnl/totalCost*100).toFixed(1) : 0;
   const assets = totalVal + (TOTAL_ASSETS - totalCost);
@@ -200,12 +238,15 @@ function renderH(){
   const tb=document.getElementById('hbody');
   if(!tb) return;
   tb.innerHTML='';
-  if(!H.length){
-    tb.innerHTML=`<div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);text-align:center;padding:32px 16px"><div style="font-size:32px;margin-bottom:12px">📊</div>尚無持倉，去設定頁新增</div>`;
+  const U=getUnifiedHoldings();
+  if(!U.length){
+    tb.innerHTML=`<div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);text-align:center;padding:32px 16px"><div style="font-size:32px;margin-bottom:12px">📊</div>尚無持倉，去設定頁新增（或在向錢進 / 定期定額 新增也會自動出現在這裡）</div>`;
+    const phEmpty=document.querySelector('#tab-portfolio .panel .phead span[style*="text-dim"]');
+    if(phEmpty) phEmpty.textContent='0 POSITIONS';
     return;
   }
-  H.forEach((h,idx)=>{
-    const pnl=(h.p-h.c)*h.s, pct=((h.p-h.c)/h.c*100).toFixed(1), up=pnl>=0, mktVal=h.p*h.s;
+  U.forEach(h=>{
+    const pnl=(h.p-h.c)*h.s, pct=h.c>0?((h.p-h.c)/h.c*100).toFixed(1):'0.0', up=pnl>=0, mktVal=h.p*h.s;
     const hasBar=h.b&&h.sl&&h.b!==h.sl;
     const rng=hasBar?h.sl-h.b:1;
     const pos=hasBar?Math.min(100,Math.max(0,(h.p-h.b)/rng*100)):50;
@@ -214,11 +255,18 @@ function renderH(){
     const chips=[h.b?`<span class="chip cb ${nb?'chip-hot':''}">買 ${h.b.toLocaleString()}</span>`:'',h.sl?`<span class="chip cs ${ns?'chip-hot':''}">賣 ${h.sl.toLocaleString()}</span>`:''].join('');
     if(!h._spark) h._spark=genSparkData(h);
     const chartSvg=makeAreaChart(h._spark, up?'#00c896':'#ff4560', up);
-    const actions=`<div class="hcard-actions"><button class="al-action-btn" onclick="editHolding(${idx})">✏️ 編輯</button><button class="al-action-btn danger" onclick="deleteHolding(${idx})">🗑️ 刪除</button></div>`;
-    tb.innerHTML+=`<div class="hcard"><div class="hcard-top"><div class="hcard-left"><div class="hcard-tk">${h.tk}</div><div class="hcard-nm">${h.nm}</div><div class="hcard-chips">${chips}</div></div><div class="hcard-right"><div class="hcard-price">${h.p.toLocaleString()}</div><div class="hcard-cost">成本 ${h.c.toLocaleString()}</div><div class="hcard-pnl ${up?'up':'dn'}">${up?'+':''}${Math.round(pnl).toLocaleString()}</div><div class="hcard-pct" style="color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</div></div></div><div class="hcard-chart">${chartSvg}</div><div class="hcard-meta"><div class="hcard-shares">${h.s.toLocaleString()} 股</div><div class="hcard-val">市值 $${Math.round(mktVal).toLocaleString()}</div></div>${hasBar?`<div class="hcard-bar-wrap"><div class="hcard-bar-lbl"><span style="color:var(--green)">買 ${h.b}</span><span>${pos.toFixed(0)}% 位置</span><span style="color:var(--red)">賣 ${h.sl}</span></div><div class="hcard-bar-track"><div class="hcard-bar-fill" style="width:${pos}%;background:${barCol}"></div><div class="hcard-bar-dot" style="left:${pos}%;background:${barCol}"></div></div></div>`:''}${actions}</div>`;
+    // Source badges: hide '持倉' (default), show others so user knows where to edit
+    const otherSources=h.sources.filter(s=>s!=='持倉');
+    const srcBadgeHTML=otherSources.length
+      ? otherSources.map(s=>{const lbl=s==='向錢進'?'🎯 向錢進':s==='DCA'?'📅 定期定額':s;return `<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:2px 8px;border-radius:8px">${lbl}</span>`;}).join(' ')
+      : '';
+    const actions=h.manualIdx>=0
+      ? `<div class="hcard-actions">${srcBadgeHTML?'<div style="display:flex;gap:6px;flex:1">'+srcBadgeHTML+'</div>':''}<button class="al-action-btn" onclick="editHolding(${h.manualIdx})">✏️ 編輯</button><button class="al-action-btn danger" onclick="deleteHolding(${h.manualIdx})">🗑️ 刪除</button></div>`
+      : `<div class="hcard-actions"><div style="display:flex;gap:6px;flex:1">${srcBadgeHTML}</div><span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);padding:6px 4px">↗ 至來源 tab 編輯</span></div>`;
+    tb.innerHTML+=`<div class="hcard"><div class="hcard-top"><div class="hcard-left"><div class="hcard-tk">${h.tk}</div><div class="hcard-nm">${h.nm}</div><div class="hcard-chips">${chips}</div></div><div class="hcard-right"><div class="hcard-price">${h.p.toLocaleString()}</div><div class="hcard-cost">成本 ${h.c.toFixed(2)}</div><div class="hcard-pnl ${up?'up':'dn'}">${up?'+':''}${Math.round(pnl).toLocaleString()}</div><div class="hcard-pct" style="color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</div></div></div><div class="hcard-chart">${chartSvg}</div><div class="hcard-meta"><div class="hcard-shares">${h.s.toLocaleString()} 股</div><div class="hcard-val">市值 $${Math.round(mktVal).toLocaleString()}</div></div>${hasBar?`<div class="hcard-bar-wrap"><div class="hcard-bar-lbl"><span style="color:var(--green)">買 ${h.b}</span><span>${pos.toFixed(0)}% 位置</span><span style="color:var(--red)">賣 ${h.sl}</span></div><div class="hcard-bar-track"><div class="hcard-bar-fill" style="width:${pos}%;background:${barCol}"></div><div class="hcard-bar-dot" style="left:${pos}%;background:${barCol}"></div></div></div>`:''}${actions}</div>`;
   });
   const ph=document.querySelector('#tab-portfolio .panel .phead span[style*="text-dim"]');
-  if(ph) ph.textContent=H.length+' POSITIONS';
+  if(ph) ph.textContent=U.length+' POSITIONS';
 }
 
 function renderTA(){
@@ -238,8 +286,9 @@ function renderTA(){
 
 // ========== RISK ==========
 function renderRisk(){
-  if(!H.length || !TOTAL_ASSETS) return;
-  const mv=H.map(h=>({tk:h.tk,nm:h.nm,val:h.p*h.s}));
+  const URisk=getUnifiedHoldings();
+  if(!URisk.length || !TOTAL_ASSETS) return;
+  const mv=URisk.map(h=>({tk:h.tk,nm:h.nm,val:(h.p||h.c)*h.s}));
   const sorted=[...mv].sort((a,b)=>b.val-a.val);
   const maxC=sorted[0];
   const maxPct=(maxC.val/TOTAL_ASSETS*100).toFixed(1);
@@ -265,12 +314,12 @@ function renderRisk(){
   if(!warns)warns=`<div class="warn-box warn-green"><div class="warn-icon">✓</div><div><div class="warn-title" style="color:var(--green)">集中度正常</div><div class="warn-text">各持倉比例在合理範圍內。</div></div></div>`;
   document.getElementById('concWarns').innerHTML=warns;
   let gHTML='';
-  H.forEach(h=>{[10,20,30].forEach(d=>{const imp=Math.abs((h.p*(d/100))*h.s)/TOTAL_ASSETS*100;gHTML+=`<div class="rg-row"><span class="rg-label">${h.tk} 跌${d}%</span><div class="rg-bar"><div class="rg-fill" style="width:${Math.min(100,imp*8)}%;background:${imp>5?'var(--red)':imp>3?'var(--orange)':'var(--green)'}"></div></div><span class="rg-val" style="color:${imp>5?'var(--red)':imp>3?'var(--orange)':'var(--green)'}">${imp.toFixed(1)}%</span></div>`;});});
+  URisk.forEach(h=>{const price=h.p||h.c;[10,20,30].forEach(d=>{const imp=Math.abs((price*(d/100))*h.s)/TOTAL_ASSETS*100;gHTML+=`<div class="rg-row"><span class="rg-label">${h.tk} 跌${d}%</span><div class="rg-bar"><div class="rg-fill" style="width:${Math.min(100,imp*8)}%;background:${imp>5?'var(--red)':imp>3?'var(--orange)':'var(--green)'}"></div></div><span class="rg-val" style="color:${imp>5?'var(--red)':imp>3?'var(--orange)':'var(--green)'}">${imp.toFixed(1)}%</span></div>`;});});
   document.getElementById('stressGauge').innerHTML=gHTML;
   const slb=document.getElementById('slBody');slb.innerHTML='';
-  H.forEach(h=>{const sl10=(h.c*0.9).toFixed(0),sl15=(h.c*0.85).toFixed(0),dist=((h.p-h.c*0.9)/h.p*100).toFixed(1),safe=parseFloat(dist)>5;slb.innerHTML+=`<tr><td><div class="htk">${h.tk}</div><div class="hnm">${h.nm}</div></td><td><div class="hp">${h.c}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:var(--orange)">${sl10}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:var(--red)">${sl15}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:${safe?'var(--green)':'var(--red)'}">${dist>0?'+':''}${dist}%</div><div style="font-size:13px;color:${safe?'var(--green)':'var(--red)'};">${safe?'安全':'接近停損'}</div></td></tr>`;});
+  URisk.forEach(h=>{const price=h.p||h.c;const sl10=(h.c*0.9).toFixed(0),sl15=(h.c*0.85).toFixed(0),dist=((price-h.c*0.9)/price*100).toFixed(1),safe=parseFloat(dist)>5;slb.innerHTML+=`<tr><td><div class="htk">${h.tk}</div><div class="hnm">${h.nm}</div></td><td><div class="hp">${h.c.toFixed(2)}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:var(--orange)">${sl10}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:var(--red)">${sl15}</div></td><td><div style="font-family:var(--mono);font-size:15px;color:${safe?'var(--green)':'var(--red)'}">${dist>0?'+':''}${dist}%</div><div style="font-size:13px;color:${safe?'var(--green)':'var(--red)'};">${safe?'安全':'接近停損'}</div></td></tr>`;});
   const maxLoss=TOTAL_ASSETS*0.02;
-  document.getElementById('sizeTable').innerHTML=H.map(h=>{const stopAmt=h.p*0.10,maxSh=Math.floor(maxLoss/stopAmt),maxVal=maxSh*h.p;return`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(26,37,53,0.6)"><div style="flex:1"><div class="htk">${h.tk} ${h.nm}</div><div class="hnm" style="margin-top:3px">停損10% = $${stopAmt.toFixed(0)}/股</div></div><div style="text-align:right"><div style="font-family:var(--mono);font-size:19px;font-weight:700;color:var(--amber)">最多 ${maxSh} 股</div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px">≈ $${maxVal.toLocaleString()}</div></div></div>`;}).join('');
+  document.getElementById('sizeTable').innerHTML=URisk.map(h=>{const price=h.p||h.c;const stopAmt=price*0.10,maxSh=Math.floor(maxLoss/stopAmt),maxVal=maxSh*price;return`<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid rgba(26,37,53,0.6)"><div style="flex:1"><div class="htk">${h.tk} ${h.nm}</div><div class="hnm" style="margin-top:3px">停損10% = $${stopAmt.toFixed(0)}/股</div></div><div style="text-align:right"><div style="font-family:var(--mono);font-size:19px;font-weight:700;color:var(--amber)">最多 ${maxSh} 股</div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-top:2px">≈ $${maxVal.toLocaleString()}</div></div></div>`;}).join('');
 }
 
 // ========== DCA ==========
@@ -726,8 +775,9 @@ function renderAllocChart(history){
 function renderAllocation(){
   const el=document.getElementById('allocBody');
   if(!el || !TOTAL_ASSETS) return;
-  const core=H.filter(x=>x.tk==='006208').reduce((s,x)=>s+x.p*x.s,0);
-  const otherHoldings=H.filter(x=>x.tk!=='006208').reduce((s,x)=>s+x.p*x.s,0);
+  const UA=getUnifiedHoldings();
+  const core=UA.filter(x=>x.tk==='006208').reduce((s,x)=>s+(x.p||x.c)*x.s,0);
+  const otherHoldings=UA.filter(x=>x.tk!=='006208').reduce((s,x)=>s+(x.p||x.c)*x.s,0);
   const invested=core+otherHoldings;
   const cash=(CASH_OVERRIDE!==null&&CASH_OVERRIDE>=0)?CASH_OVERRIDE:Math.max(0,TOTAL_ASSETS-invested);
   const total=TOTAL_ASSETS;
@@ -739,7 +789,7 @@ function renderAllocation(){
     {label:'向錢進（進攻部位）',pct:attackPct,val:otherHoldings,color:'#00c896',desc:'負責波段操作，嚴格執行停利與停損'},
     {label:'戰略預備金（現金）',pct:cashPct,val:cash,color:'#ffb832',desc:'保留子彈，大跌時才有資金加碼 006208'},
   ];
-  if(total>0&&H.length>0) saveAllocSnapshot(corePct,attackPct,cashPct,total);
+  if(total>0&&UA.length>0) saveAllocSnapshot(corePct,attackPct,cashPct,total);
   renderAllocChart(loadAllocHistory());
   let tip='';
   if(cashPct>=15) tip=`現金水位 ${cashPct}% 充足，遇大跌可以果斷加碼，保持這個配置！`;
