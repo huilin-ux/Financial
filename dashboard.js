@@ -902,6 +902,7 @@ function obSkip(){
 // ========== SETTINGS DATA ==========
 function renderSettingsData(){
   renderSettingsSrcChips();
+  renderBackupFolderStatus();
   const cfgTotal=document.getElementById('cfg-total');
   if(cfgTotal) cfgTotal.value=TOTAL_ASSETS||'';
   const cloudInput=document.getElementById('cloud-api-url');
@@ -936,13 +937,35 @@ function editHolding(i){
 }
 function deleteHolding(i){if(!confirm(`確定刪除 ${H[i].tk} ${H[i].nm}？`))return;H.splice(i,1);saveData();renderAll();renderSettingsData();}
 function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;renderAll();renderSettingsData();showOnboarding();}
-function exportData(){
+function _bkpDB(){return new Promise((res,rej)=>{const r=indexedDB.open('invest_os',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function _saveBkpHandle(h){const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'backup_dir');tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function _loadBkpHandle(){try{const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const req=tx.objectStore('handles').get('backup_dir');req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}catch{return null;}}
+async function _verifyBkpPerm(h){const o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;return await h.requestPermission(o)==='granted';}
+async function pickBackupFolder(){
+  if(!window.showDirectoryPicker){alert('你的瀏覽器不支援此功能，請用 Chrome / Edge / Safari 15.2+');return;}
+  try{const h=await window.showDirectoryPicker({mode:'readwrite'});await _saveBkpHandle(h);renderBackupFolderStatus();alert('已綁定備份資料夾：'+h.name);}
+  catch(e){if(e.name!=='AbortError')alert('選擇失敗：'+e.message);}
+}
+async function renderBackupFolderStatus(){
+  const el=document.getElementById('bkpFolderStatus');if(!el)return;
+  const h=await _loadBkpHandle();
+  if(h){el.textContent='📁 '+h.name+' （已綁定）';el.style.color='var(--green)';}
+  else{el.textContent='(尚未選定 — 下載到瀏覽器預設位置)';el.style.color='var(--text-dim)';}
+}
+async function exportData(){
   const data=JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES},null,2);
+  const filename='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
+  try{
+    const h=await _loadBkpHandle();
+    if(h && await _verifyBkpPerm(h)){
+      const fh=await h.getFileHandle(filename,{create:true});
+      const w=await fh.createWritable();await w.write(data);await w.close();
+      alert('✓ 已存到 '+h.name+'/'+filename);
+      return;
+    }
+  }catch(e){console.warn('Folder save failed, falling back to download:',e);}
   const blob=new Blob([data],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
-  a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
 // ========== DCA ACCORDION ==========
