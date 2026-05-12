@@ -65,8 +65,14 @@ async function saveToCloud() {
       // keepalive: let POST complete even if user navigates / refreshes before fetch resolves
       keepalive: true
     });
-    if (res.ok) clearDeletedWatchKeys_();
-    return res.ok;
+    if (!res.ok) { console.warn('saveToCloud HTTP '+res.status); return false; }
+    let data;
+    try { data = await res.json(); }
+    catch(parseErr){ console.warn('saveToCloud: response is not JSON (likely auth redirect from wrong deployment access)'); return false; }
+    if (data && data.error) { console.warn('saveToCloud server error:', data.error); return false; }
+    if (!data || !data.ok) { console.warn('saveToCloud: server did not confirm save'); return false; }
+    clearDeletedWatchKeys_();
+    return true;
   } catch (e) {
     console.warn('saveToCloud failed:', e);
     return false;
