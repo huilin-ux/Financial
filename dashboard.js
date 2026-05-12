@@ -204,7 +204,7 @@ function renderH(){
     tb.innerHTML=`<div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);text-align:center;padding:32px 16px"><div style="font-size:32px;margin-bottom:12px">📊</div>尚無持倉，去設定頁新增</div>`;
     return;
   }
-  H.forEach(h=>{
+  H.forEach((h,idx)=>{
     const pnl=(h.p-h.c)*h.s, pct=((h.p-h.c)/h.c*100).toFixed(1), up=pnl>=0, mktVal=h.p*h.s;
     const hasBar=h.b&&h.sl&&h.b!==h.sl;
     const rng=hasBar?h.sl-h.b:1;
@@ -214,7 +214,8 @@ function renderH(){
     const chips=[h.b?`<span class="chip cb ${nb?'chip-hot':''}">買 ${h.b.toLocaleString()}</span>`:'',h.sl?`<span class="chip cs ${ns?'chip-hot':''}">賣 ${h.sl.toLocaleString()}</span>`:''].join('');
     if(!h._spark) h._spark=genSparkData(h);
     const chartSvg=makeAreaChart(h._spark, up?'#00c896':'#ff4560', up);
-    tb.innerHTML+=`<div class="hcard"><div class="hcard-top"><div class="hcard-left"><div class="hcard-tk">${h.tk}</div><div class="hcard-nm">${h.nm}</div><div class="hcard-chips">${chips}</div></div><div class="hcard-right"><div class="hcard-price">${h.p.toLocaleString()}</div><div class="hcard-cost">成本 ${h.c.toLocaleString()}</div><div class="hcard-pnl ${up?'up':'dn'}">${up?'+':''}${Math.round(pnl).toLocaleString()}</div><div class="hcard-pct" style="color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</div></div></div><div class="hcard-chart">${chartSvg}</div><div class="hcard-meta"><div class="hcard-shares">${h.s.toLocaleString()} 股</div><div class="hcard-val">市值 $${Math.round(mktVal).toLocaleString()}</div></div>${hasBar?`<div class="hcard-bar-wrap"><div class="hcard-bar-lbl"><span style="color:var(--green)">買 ${h.b}</span><span>${pos.toFixed(0)}% 位置</span><span style="color:var(--red)">賣 ${h.sl}</span></div><div class="hcard-bar-track"><div class="hcard-bar-fill" style="width:${pos}%;background:${barCol}"></div><div class="hcard-bar-dot" style="left:${pos}%;background:${barCol}"></div></div></div>`:''}</div>`;
+    const actions=`<div class="hcard-actions"><button class="al-action-btn" onclick="editHolding(${idx})">✏️ 編輯</button><button class="al-action-btn danger" onclick="deleteHolding(${idx})">🗑️ 刪除</button></div>`;
+    tb.innerHTML+=`<div class="hcard"><div class="hcard-top"><div class="hcard-left"><div class="hcard-tk">${h.tk}</div><div class="hcard-nm">${h.nm}</div><div class="hcard-chips">${chips}</div></div><div class="hcard-right"><div class="hcard-price">${h.p.toLocaleString()}</div><div class="hcard-cost">成本 ${h.c.toLocaleString()}</div><div class="hcard-pnl ${up?'up':'dn'}">${up?'+':''}${Math.round(pnl).toLocaleString()}</div><div class="hcard-pct" style="color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(pct)}%</div></div></div><div class="hcard-chart">${chartSvg}</div><div class="hcard-meta"><div class="hcard-shares">${h.s.toLocaleString()} 股</div><div class="hcard-val">市值 $${Math.round(mktVal).toLocaleString()}</div></div>${hasBar?`<div class="hcard-bar-wrap"><div class="hcard-bar-lbl"><span style="color:var(--green)">買 ${h.b}</span><span>${pos.toFixed(0)}% 位置</span><span style="color:var(--red)">賣 ${h.sl}</span></div><div class="hcard-bar-track"><div class="hcard-bar-fill" style="width:${pos}%;background:${barCol}"></div><div class="hcard-bar-dot" style="left:${pos}%;background:${barCol}"></div></div></div>`:''}${actions}</div>`;
   });
   const ph=document.querySelector('#tab-portfolio .panel .phead span[style*="text-dim"]');
   if(ph) ph.textContent=H.length+' POSITIONS';
@@ -451,6 +452,25 @@ function renderAL(){
     const counts={watching:0,holding:0,sold_profit:0,sold_loss:0};
     AL.forEach(a=>{if(counts[a.status]!==undefined)counts[a.status]++;});
     sumEl.innerHTML=Object.entries(counts).map(([s,c])=>c>0?`<div class="al-sum-pill">${AL_STATUS[s].label} ${c}</div>`:'').join('');
+  }
+  // Top-of-tab stats: only count 持有中 items for $ aggregates
+  const statsEl=document.getElementById('alStatsGrid');
+  if(statsEl){
+    const holdings=AL.filter(a=>a.status==='holding'&&a.shares>0&&a.b>0);
+    const watchingCnt=AL.filter(a=>a.status==='watching').length;
+    const totalCost=holdings.reduce((s,a)=>s+a.b*a.shares,0);
+    const totalShares=holdings.reduce((s,a)=>s+a.shares,0);
+    const avgCost=totalShares>0?totalCost/totalShares:0;
+    const mktVal=holdings.reduce((s,a)=>s+(a.p||a.b)*a.shares,0);
+    const pnl=mktVal-totalCost;
+    const pnlPct=totalCost>0?(pnl/totalCost*100):0;
+    const pnlCls=pnl===0?'am':pnl>0?'up':'dn';
+    const pnlSign=pnl>=0?'+':'';
+    statsEl.innerHTML=
+      `<div class="stat" data-g="∑"><div class="slbl">持有中</div><div class="sval am">${holdings.length}</div><div class="sdelta am">${watchingCnt>0?`追蹤中 ${watchingCnt}`:'—'}</div></div>`+
+      `<div class="stat" data-g="$"><div class="slbl">已投入</div><div class="sval am">$${Math.round(totalCost).toLocaleString()}</div><div class="sdelta am">${totalShares.toLocaleString()} 股</div></div>`+
+      `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta am">${mktVal?'市值 $'+Math.round(mktVal).toLocaleString():'—'}</div></div>`+
+      `<div class="stat" data-g="${pnl>=0?'▲':'▼'}"><div class="slbl">未實現損益</div><div class="sval ${pnlCls}">${totalCost?pnlSign+Math.round(pnl).toLocaleString():'—'}</div><div class="sdelta ${pnlCls}">${totalCost?pnlSign+pnlPct.toFixed(1)+'%':'—'}</div></div>`;
   }
   const el=document.getElementById('alist');
   const filtered=alFilter==='all'?AL:AL.filter(a=>a.status===alFilter);
