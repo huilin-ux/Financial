@@ -279,16 +279,39 @@ function renderDCA(){
   DCA_ENTRIES.forEach(e=>{if(!byTk[e.tk])byTk[e.tk]={nm:e.nm,entries:[]};byTk[e.tk].entries.push(e);});
   const confirmed=DCA_ENTRIES.filter(e=>e.price&&!e.pending);
   const totalAmt=confirmed.reduce((s,e)=>s+e.amt,0);
+  const uniqueTks=Object.keys(byTk);
+  const isSingle=uniqueTks.length<=1;
+  // Correct market value: sum each ticker's (own price × own shares).
+  // The old code multiplied total shares by the first ticker's price,
+  // which made the multi-stock summary wildly wrong.
+  let mktVal=0, allPriced=uniqueTks.length>0;
+  uniqueTks.forEach(tk=>{
+    const sh=byTk[tk].entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
+    const stockH=H.find(x=>x.tk===tk);
+    if(stockH&&stockH.p&&sh>0) mktVal+=stockH.p*sh;
+    else if(sh>0) allPriced=false;
+  });
+  const pnl=allPriced&&totalAmt>0?mktVal-totalAmt:null;
+  const pnlPct=pnl===null?null:(pnl/totalAmt*100);
+  const pnlCls=pnl===null?'am':pnl>=0?'up':'dn';
+  // Single-stock metrics (only meaningful when one ticker)
   const totalShares=confirmed.reduce((s,e)=>s+(e.shares||0),0);
   const avgCost=totalShares>0?totalAmt/totalShares:0;
-  const firstTk=Object.keys(byTk)[0]||'006208';
-  const hStock=H.find(x=>x.tk===firstTk);
-  const curPrice=hStock?hStock.p:null;
-  const mktVal=curPrice?totalShares*curPrice:null;
-  const pnl=mktVal?mktVal-totalAmt:null;
-  const pnlPct=pnl?(pnl/totalAmt*100).toFixed(1):null;
+  const singleTk=isSingle?uniqueTks[0]:null;
+  const singleCur=singleTk?(H.find(x=>x.tk===singleTk)||{}).p:null;
   const grid=document.getElementById('dcaSummaryGrid');
-  if(grid) grid.innerHTML=`<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${DCA_ENTRIES.length} 筆</div></div><div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost.toFixed(2)}</div><div class="sdelta ${curPrice&&curPrice>avgCost?'up':'dn'}">${curPrice?`現價 ${curPrice} (${curPrice>avgCost?'+':''}${((curPrice-avgCost)/avgCost*100).toFixed(1)}%)`:'—'}</div></div><div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${totalShares.toLocaleString()}</div><div class="sdelta am">${(totalShares/1000).toFixed(1)} 張</div></div><div class="stat" data-g="${pnl>=0?'▲':'▼'}"><div class="slbl">累計損益</div><div class="sval ${pnl===null?'am':pnl>=0?'up':'dn'}">${pnl===null?'—':(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()}</div><div class="sdelta ${pnl===null?'':pnl>=0?'up':'dn'}">${pnlPct===null?'—':(pnl>=0?'+':'')+pnlPct+'%'}</div></div>`;
+  if(grid){
+    const slot2=isSingle
+      ? `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta ${singleCur&&singleCur>avgCost?'up':singleCur?'dn':'am'}">${singleCur?`現價 ${singleCur} (${singleCur>avgCost?'+':''}${((singleCur-avgCost)/avgCost*100).toFixed(1)}%)`:'—'}</div></div>`
+      : `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${uniqueTks.length}</div><div class="sdelta am">${DCA_ENTRIES.length} 筆紀錄</div></div>`;
+    const slot3=isSingle
+      ? `<div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${totalShares.toLocaleString()}</div><div class="sdelta am">${(totalShares/1000).toFixed(1)} 張</div></div>`
+      : `<div class="stat" data-g="$"><div class="slbl">市值</div><div class="sval ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${mktVal?'$'+Math.round(mktVal).toLocaleString():'—'}</div><div class="sdelta ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${allPriced&&totalAmt?(mktVal>=totalAmt?'▲':'▼')+' vs 投入':'—'}</div></div>`;
+    grid.innerHTML=
+      `<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${DCA_ENTRIES.length} 筆</div></div>`+
+      slot2+slot3+
+      `<div class="stat" data-g="${pnl===null?'—':pnl>=0?'▲':'▼'}"><div class="slbl">累計損益</div><div class="sval ${pnlCls}">${pnl===null?'—':(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()}</div><div class="sdelta ${pnlCls}">${pnlPct===null?'—':(pnl>=0?'+':'')+pnlPct.toFixed(1)+'%'}</div></div>`;
+  }
   const container=document.getElementById('dcaStockPanels');
   if(!container) return;
   container.innerHTML='';
