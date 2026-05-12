@@ -453,23 +453,25 @@ function renderAL(){
     AL.forEach(a=>{if(counts[a.status]!==undefined)counts[a.status]++;});
     sumEl.innerHTML=Object.entries(counts).map(([s,c])=>c>0?`<div class="al-sum-pill">${AL_STATUS[s].label} ${c}</div>`:'').join('');
   }
-  // Top-of-tab stats: only count 持有中 items for $ aggregates
+  // Top-of-tab stats: only count 持有中 items for $ aggregates.
+  // 'shares' / 'avg cost' don't make sense across different stocks, so we
+  // show 持有檔數 / 已投入 / 市值 / 未實現損益 instead — all are meaningful
+  // when summed across multiple tickers.
   const statsEl=document.getElementById('alStatsGrid');
   if(statsEl){
     const holdings=AL.filter(a=>a.status==='holding'&&a.shares>0&&a.b>0);
     const watchingCnt=AL.filter(a=>a.status==='watching').length;
     const totalCost=holdings.reduce((s,a)=>s+a.b*a.shares,0);
-    const totalShares=holdings.reduce((s,a)=>s+a.shares,0);
-    const avgCost=totalShares>0?totalCost/totalShares:0;
     const mktVal=holdings.reduce((s,a)=>s+(a.p||a.b)*a.shares,0);
     const pnl=mktVal-totalCost;
     const pnlPct=totalCost>0?(pnl/totalCost*100):0;
     const pnlCls=pnl===0?'am':pnl>0?'up':'dn';
     const pnlSign=pnl>=0?'+':'';
+    const mktCls=mktVal===totalCost?'am':mktVal>totalCost?'up':'dn';
     statsEl.innerHTML=
-      `<div class="stat" data-g="∑"><div class="slbl">持有中</div><div class="sval am">${holdings.length}</div><div class="sdelta am">${watchingCnt>0?`追蹤中 ${watchingCnt}`:'—'}</div></div>`+
-      `<div class="stat" data-g="$"><div class="slbl">已投入</div><div class="sval am">$${Math.round(totalCost).toLocaleString()}</div><div class="sdelta am">${totalShares.toLocaleString()} 股</div></div>`+
-      `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta am">${mktVal?'市值 $'+Math.round(mktVal).toLocaleString():'—'}</div></div>`+
+      `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${holdings.length}</div><div class="sdelta am">${watchingCnt>0?`追蹤中 ${watchingCnt}`:'—'}</div></div>`+
+      `<div class="stat" data-g="$"><div class="slbl">已投入</div><div class="sval am">$${Math.round(totalCost).toLocaleString()}</div><div class="sdelta am">${holdings.length>0?'共 '+holdings.length+' 檔':'—'}</div></div>`+
+      `<div class="stat" data-g="$"><div class="slbl">市值</div><div class="sval ${mktCls}">${mktVal?'$'+Math.round(mktVal).toLocaleString():'—'}</div><div class="sdelta ${mktCls}">${totalCost?(mktVal>=totalCost?'▲':'▼')+' vs 投入':'—'}</div></div>`+
       `<div class="stat" data-g="${pnl>=0?'▲':'▼'}"><div class="slbl">未實現損益</div><div class="sval ${pnlCls}">${totalCost?pnlSign+Math.round(pnl).toLocaleString():'—'}</div><div class="sdelta ${pnlCls}">${totalCost?pnlSign+pnlPct.toFixed(1)+'%':'—'}</div></div>`;
   }
   const el=document.getElementById('alist');
