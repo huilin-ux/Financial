@@ -210,6 +210,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 @keyframes lb{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skel{background:linear-gradient(90deg,var(--edge) 25%,rgba(26,37,53,0.8) 50%,var(--edge) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:3px;margin-bottom:9px;height:14px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+#hbody{display:flex;flex-direction:column;gap:0}
 .hcard{padding:16px;border-bottom:1px solid rgba(26,37,53,0.7);position:relative;overflow:hidden}
 .hcard:last-child{border-bottom:none}
 .hcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;position:relative;z-index:2}
@@ -359,7 +360,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div class="panel" id="holdingsPanel">
     <div class="phead"><div class="plabel">持倉明細</div><button class="hint-btn" onclick="showHint('holdings', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">4 POSITIONS</span></div>
-    <div id="hbody" style="display:flex;flex-direction:column;gap:0"></div>
+    <div id="hbody"></div>
   </div>
   <div class="panel" id="trigPanel">
     <div class="phead"><div class="plabel">今日觸發提醒</div><button class="hint-btn" onclick="showHint('alerts-today', event)" title="說明">?</button></div>
