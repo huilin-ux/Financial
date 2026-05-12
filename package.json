@@ -1,0 +1,14 @@
+{
+  "name": "financial-apps-script",
+  "private": true,
+  "scripts": {
+    "gas:login": "clasp login",
+    "gas:push": "clasp push --force",
+    "gas:pull": "clasp pull",
+    "gas:open": "clasp open",
+    "gas:watch": "clasp push --watch"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}
