@@ -413,7 +413,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">成交價格</div><input id="dca-price" class="finput" type="number" placeholder="105.5"></div>
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">買入股數</div><input id="dca-shares" class="finput" type="number" placeholder="94"></div>
         </div>
-        <button onclick="addDcaEntry()" class="btn btn-p" style="width:100%">確認新增</button>
+        <button id="dcaSingleSubmit" onclick="addDcaEntry()" class="btn btn-p" style="width:100%">確認新增</button>
       </div>
     </div>
   </div>
