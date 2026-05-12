@@ -413,25 +413,49 @@ function renderAL(){
     const isSold=a.status==='sold_profit'||a.status==='sold_loss';
     const isHolding=a.status==='holding';
     const isWatching=a.status==='watching';
-    const rng=(a.tp||a.b*1.2)-a.b;
-    const pos=Math.min(100,Math.max(0,((a.p||a.b)-a.b)/rng*100));
-    const stopPos=a.stop?Math.min(100,Math.max(0,(a.stop-a.b)/rng*100)):null;
-    const nearBuy=a.p&&a.p<=a.b*1.03;
+    // Bar range: 停損 → 停利. If either missing, fall back to ±15% of buy.
+    const trackMin=(a.stop&&a.stop>0)?a.stop:a.b*0.85;
+    const trackMax=(a.tp&&a.tp>a.b)?a.tp:a.b*1.15;
+    const trackRng=trackMax-trackMin;
+    const curPos=trackRng>0?Math.min(100,Math.max(0,((a.p||a.b)-trackMin)/trackRng*100)):50;
+    const buyPos=trackRng>0?Math.min(100,Math.max(0,(a.b-trackMin)/trackRng*100)):0;
+    const nearBuy=a.p&&Math.abs(a.p-a.b)/a.b<=0.03;
     const nearStop=a.p&&a.stop&&a.p<=a.stop*1.05;
     const nearTP=a.p&&a.tp&&a.p>=a.tp*0.97;
     let priceCol='var(--text-primary)';
-    if(nearStop)priceCol='var(--red)';else if(nearBuy)priceCol='var(--green)';else if(nearTP)priceCol='var(--amber)';
+    if(nearStop)priceCol='var(--red)';else if(nearTP)priceCol='var(--amber)';else if(nearBuy)priceCol='var(--green)';
     let cardAlert='';
     if(nearBuy&&isWatching)cardAlert='price-near-buy';
     if(nearStop&&isHolding)cardAlert='price-near-stop';
-    const fillCol=pos<40?'var(--green)':pos>75?'var(--amber)':'var(--blue)';
+    // P&L
+    const pnlPerShare=(a.p&&a.b)?(a.p-a.b):0;
+    const pnlPct=(a.p&&a.b)?((a.p-a.b)/a.b*100):0;
+    const totalPnl=pnlPerShare*(a.shares||0);
+    const isProfit=pnlPerShare>=0;
+    const pnlColor=isProfit?'var(--green)':'var(--red)';
+    // Fill segment represents the buy → current journey
+    const fillLeft=Math.min(buyPos,curPos);
+    const fillWidth=Math.abs(curPos-buyPos);
+    const fillBg=isProfit?'linear-gradient(90deg,rgba(46,204,113,0.55),rgba(46,204,113,0.95))':'linear-gradient(90deg,rgba(231,76,60,0.95),rgba(231,76,60,0.55))';
+    const dotCol=isProfit?'var(--green)':'var(--red)';
+    // P&L badge (top-right, under status badge)
+    let pnlBadge='';
+    if(isHolding&&a.p&&a.b){
+      const sharesText=a.shares?` · ${a.shares}股`:'';
+      pnlBadge=`<div class="al-pnl" style="font-size:14px;color:${pnlColor}">${isProfit?'+':''}${a.shares?'$'+Math.round(totalPnl).toLocaleString():''}${a.shares?' ':''}(${isProfit?'+':''}${pnlPct.toFixed(1)}%)<span style="font-size:11px;color:var(--text-dim);font-weight:400">${sharesText}</span></div>`;
+    } else if(isWatching&&a.p&&a.b){
+      const dist=pnlPct.toFixed(1);
+      const distCol=a.p>a.b?'var(--text-dim)':'var(--green)';
+      pnlBadge=`<div class="al-pnl" style="font-size:13px;color:${distCol};font-weight:600">距買 ${a.p>a.b?'+':''}${dist}%</div>`;
+    }
     const editBtn=`<button class="al-action-btn" onclick="editAlert(${a.id})">✏️ 編輯</button>`;
     let actions='';
     if(isWatching) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">✅ 標記買進</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     else if(isHolding) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'sold_profit')">✅ 獲利出場</button><button class="al-action-btn danger" onclick="setALStatus(${a.id},'sold_loss')">🛑 停損出場</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     else actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">↩️ 撤回出場</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     const sharesLabel=a.shares?` ｜ 計劃 ${a.shares.toLocaleString()} 股${a.shares>=1000&&a.shares%1000===0?` (${a.shares/1000} 張)`:a.shares<1000?' (零股)':''}`:'';
-    return `<div class="al-card ${st.cls} ${cardAlert}"><div class="al-head"><div class="al-stock"><div class="al-tk">${a.tk} <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">${a.nm}</span></div><div class="al-src">情報來源：${a.src}${sharesLabel}</div></div><div style="text-align:right;flex-shrink:0;margin-left:12px"><div class="al-price-lbl">目前股價</div><div class="al-price-big" style="color:${priceCol}">$${a.p||'—'}</div><div style="margin-top:6px"><span class="al-badge ${st.cls}">${st.label}</span></div></div></div><div class="al-trio"><div class="al-trio-item"><div class="al-trio-lbl">買進價</div><div class="al-trio-val" style="color:var(--green)">$${a.b||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停利價 🎯</div><div class="al-trio-val" style="color:var(--amber)">$${a.tp||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停損價 🛑</div><div class="al-trio-val" style="color:var(--red)">$${a.stop||'—'}</div></div></div>${!isSold&&a.p&&a.b&&a.tp?`<div class="al-track"><div class="al-track-lbl"><span style="color:var(--red)">停損 $${a.stop||'—'}</span><span>買進 $${a.b}</span><span style="color:var(--text-secondary)">現價 $${a.p}</span><span style="color:var(--amber)">停利 $${a.tp}</span></div><div class="al-track-bar"><div class="al-track-fill" style="width:${pos}%;background:linear-gradient(90deg,var(--green),${fillCol})"></div><div class="al-track-dot" style="left:${pos}%;background:${fillCol}"></div>${stopPos!==null?`<div class="al-stop-line" style="left:${stopPos}%;background:var(--red)"></div>`:''}</div></div>`:''}${a.note?`<div class="al-note"><span style="font-size:16px;flex-shrink:0">📖</span>${a.note}</div>`:''}<div class="al-actions">${actions}</div></div>`;
+    const trackHTML=!isSold&&a.p&&a.b?`<div class="al-track"><div class="al-track-bar"><div class="al-track-fill" style="left:${fillLeft}%;width:${fillWidth}%;background:${fillBg}"></div>${a.stop?`<div class="al-buy-marker" style="left:${buyPos}%"></div>`:''}<div class="al-track-dot" style="left:${curPos}%;background:${dotCol}"></div></div><div style="display:flex;justify-content:space-between;font-size:11px;font-family:var(--mono);margin-top:8px"><span style="color:var(--red)">🛑 停損 $${a.stop||'—'}</span><span style="color:var(--text-secondary)">買 $${a.b} → 現 <span style="color:${pnlColor};font-weight:700">$${a.p}</span></span><span style="color:var(--amber)">🎯 停利 $${a.tp||'—'}</span></div></div>`:'';
+    return `<div class="al-card ${st.cls} ${cardAlert}"><div class="al-head"><div class="al-stock"><div class="al-tk">${a.tk} <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">${a.nm}</span></div><div class="al-src">情報來源：${a.src}${sharesLabel}</div></div><div style="text-align:right;flex-shrink:0;margin-left:12px"><div class="al-price-lbl">目前股價</div><div class="al-price-big" style="color:${priceCol}">$${a.p||'—'}</div><div style="margin-top:6px"><span class="al-badge ${st.cls}">${st.label}</span></div>${pnlBadge}</div></div><div class="al-trio"><div class="al-trio-item"><div class="al-trio-lbl">買進價</div><div class="al-trio-val" style="color:var(--green)">$${a.b||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停利價 🎯</div><div class="al-trio-val" style="color:var(--amber)">$${a.tp||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停損價 🛑</div><div class="al-trio-val" style="color:var(--red)">$${a.stop||'—'}</div></div></div>${trackHTML}${a.note?`<div class="al-note"><span style="font-size:16px;flex-shrink:0">📖</span>${a.note}</div>`:''}<div class="al-actions">${actions}</div></div>`;
   }).join('');
 }
 
