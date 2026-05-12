@@ -52,6 +52,7 @@ async function saveToCloud() {
       key: getCloudApiKey(),
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
       watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status})),
+      watchlist_deleted: getDeletedWatchKeys_(),
       dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending})),
       trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
       config: { total_assets: TOTAL_ASSETS }
@@ -64,6 +65,7 @@ async function saveToCloud() {
       // keepalive: let POST complete even if user navigates / refreshes before fetch resolves
       keepalive: true
     });
+    if (res.ok) clearDeletedWatchKeys_();
     return res.ok;
   } catch (e) {
     console.warn('saveToCloud failed:', e);
@@ -515,7 +517,15 @@ function addAlert(){
   resetAlertFormUI();
   saveData(); renderAL();
 }
-function delA(id){AL=AL.filter(a=>a.id!==id);saveData();renderAL();}
+function getDeletedWatchKeys_(){try{return JSON.parse(localStorage.getItem('al_deleted_keys')||'[]');}catch(e){return [];}}
+function addDeletedWatchKey_(tk){const keys=getDeletedWatchKeys_();if(!keys.includes(tk)){keys.push(tk);localStorage.setItem('al_deleted_keys',JSON.stringify(keys));}}
+function clearDeletedWatchKeys_(){localStorage.removeItem('al_deleted_keys');}
+function delA(id){
+  const a=AL.find(x=>x.id===id);
+  if(a&&a.tk) addDeletedWatchKey_(a.tk);
+  AL=AL.filter(a=>a.id!==id);
+  saveData();renderAL();
+}
 
 // ========== MORNING REPORT (synced from LINE push) ==========
 function renderMorningReport(){
