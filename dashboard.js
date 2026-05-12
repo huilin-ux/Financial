@@ -53,7 +53,7 @@ async function saveToCloud() {
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
       watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status})),
       watchlist_deleted: getDeletedWatchKeys_(),
-      dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending})),
+      dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending,owner:d.owner||'自己'})),
       trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
       config: { total_assets: TOTAL_ASSETS }
     };
@@ -83,7 +83,7 @@ function cloudToLocal_(data) {
   const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:Number(r.price)||r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
   const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,shares:Number(r.plan_shares)||0,src:r.source,note:'',status:r.status,p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
-  const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,pending:!r.active}));
+  const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,owner:r.owner||'自己',pending:!r.active}));
   const cfg = data.config || {};
   GEMINI_KEY = String(cfg.gemini_key || '').replace(/\s+/g, '');
   OWNER_NAME = String(cfg.owner_name || '朋友').trim();
@@ -274,10 +274,42 @@ function renderRisk(){
 }
 
 // ========== DCA ==========
+// ========== DCA OWNER FILTER ==========
+let DCA_OWNER_FILTER=localStorage.getItem('dca_owner_filter')||'all';
+function _ownerOf(e){return (e.owner||'自己').trim()||'自己';}
+function getDcaOwners(){const s=new Set();DCA_ENTRIES.forEach(e=>s.add(_ownerOf(e)));return [...s];}
+function filterDcaOwner(o,btn){
+  DCA_OWNER_FILTER=o;
+  localStorage.setItem('dca_owner_filter',o);
+  document.querySelectorAll('.dca-owner-filter-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderDCA();
+}
+function renderDcaOwnerFilter(){
+  const el=document.getElementById('dcaOwnerFilter');
+  if(!el) return;
+  const owners=getDcaOwners();
+  if(owners.length<=1){ el.style.display='none'; DCA_OWNER_FILTER='all'; }
+  else {
+    el.style.display='flex';
+    const esc=s=>String(s).replace(/'/g,"\\'");
+    el.innerHTML=`<button class="al-filter dca-owner-filter-btn ${DCA_OWNER_FILTER==='all'?'active':''}" onclick="filterDcaOwner('all',this)">全部</button>`+
+      owners.map(o=>`<button class="al-filter dca-owner-filter-btn ${DCA_OWNER_FILTER===o?'active':''}" onclick="filterDcaOwner('${esc(o)}',this)">👤 ${o}</button>`).join('');
+  }
+  // Populate datalist for owner input
+  const dl=document.getElementById('dcaOwnerList');
+  if(dl) dl.innerHTML=owners.map(o=>`<option value="${o}">`).join('');
+}
+
 function renderDCA(){
+  renderDcaOwnerFilter();
+  // Filter entries by selected owner (default = all)
+  const VISIBLE=DCA_OWNER_FILTER==='all'
+    ? DCA_ENTRIES
+    : DCA_ENTRIES.filter(e=>_ownerOf(e)===DCA_OWNER_FILTER);
   const byTk={};
-  DCA_ENTRIES.forEach(e=>{if(!byTk[e.tk])byTk[e.tk]={nm:e.nm,entries:[]};byTk[e.tk].entries.push(e);});
-  const confirmed=DCA_ENTRIES.filter(e=>e.price&&!e.pending);
+  VISIBLE.forEach(e=>{if(!byTk[e.tk])byTk[e.tk]={nm:e.nm,entries:[]};byTk[e.tk].entries.push(e);});
+  const confirmed=VISIBLE.filter(e=>e.price&&!e.pending);
   const totalAmt=confirmed.reduce((s,e)=>s+e.amt,0);
   const uniqueTks=Object.keys(byTk);
   const isSingle=uniqueTks.length<=1;
@@ -303,12 +335,12 @@ function renderDCA(){
   if(grid){
     const slot2=isSingle
       ? `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta ${singleCur&&singleCur>avgCost?'up':singleCur?'dn':'am'}">${singleCur?`現價 ${singleCur} (${singleCur>avgCost?'+':''}${((singleCur-avgCost)/avgCost*100).toFixed(1)}%)`:'—'}</div></div>`
-      : `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${uniqueTks.length}</div><div class="sdelta am">${DCA_ENTRIES.length} 筆紀錄</div></div>`;
+      : `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${uniqueTks.length}</div><div class="sdelta am">${VISIBLE.length} 筆紀錄</div></div>`;
     const slot3=isSingle
       ? `<div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${totalShares.toLocaleString()}</div><div class="sdelta am">${(totalShares/1000).toFixed(1)} 張</div></div>`
       : `<div class="stat" data-g="$"><div class="slbl">市值</div><div class="sval ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${mktVal?'$'+Math.round(mktVal).toLocaleString():'—'}</div><div class="sdelta ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${allPriced&&totalAmt?(mktVal>=totalAmt?'▲':'▼')+' vs 投入':'—'}</div></div>`;
     grid.innerHTML=
-      `<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${DCA_ENTRIES.length} 筆</div></div>`+
+      `<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${VISIBLE.length} 筆</div></div>`+
       slot2+slot3+
       `<div class="stat" data-g="${pnl===null?'—':pnl>=0?'▲':'▼'}"><div class="slbl">累計損益</div><div class="sval ${pnlCls}">${pnl===null?'—':(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()}</div><div class="sdelta ${pnlCls}">${pnlPct===null?'—':(pnl>=0?'+':'')+pnlPct.toFixed(1)+'%'}</div></div>`;
   }
@@ -331,14 +363,19 @@ function renderDCA(){
     const pts=prices.map((p,i)=>`${pad+i*xStep},${CH-pad-(p-mn)*yScale}`).join(' ');
     let cumAmt=0,cumShares=0;
     const avgPts=entries.filter(e=>e.price).map((e,i)=>{cumAmt+=e.amt;cumShares+=e.shares;return `${pad+i*xStep},${CH-pad-(cumAmt/cumShares-mn)*yScale}`;}).join(' ');
+    const showOwners=getDcaOwners().length>1;
     const entryRows=entries.map(e=>{
       const isPending=e.pending||!e.price;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
+      const ownerBadge=showOwners?`<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:8px;margin-left:6px">👤 ${_ownerOf(e)}</span>`:'';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
     }).join('');
     container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span><button onclick="deleteDcaStock('${tk}')" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這檔的全部紀錄">🗑️ 刪除整檔</button></div></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${tkAvg.toFixed(2)}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
   });
-  if(DCA_ENTRIES.length===0){
-    container.innerHTML=`<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">📅</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">尚無扣款紀錄</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">點上方「新增定期定額計畫」<br>設定好開始日期和每月扣款金額<br>系統自動產生所有預計扣款日</div></div>`;
+  if(VISIBLE.length===0){
+    const isFiltered=DCA_OWNER_FILTER!=='all'&&DCA_ENTRIES.length>0;
+    container.innerHTML=isFiltered
+      ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">👤</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">「${DCA_OWNER_FILTER}」這個帳戶還沒有定期定額紀錄</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">切到「全部」看其他帳戶，或新增一筆。</div></div>`
+      : `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">📅</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">尚無扣款紀錄</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">點上方「新增定期定額計畫」<br>設定好開始日期和每月扣款金額<br>系統自動產生所有預計扣款日</div></div>`;
   }
   renderDcaStrategy();
 }
@@ -395,6 +432,7 @@ function editDcaEntry(id){
   document.getElementById('dca-amt').value=e.amt||'';
   document.getElementById('dca-price').value=e.price||'';
   document.getElementById('dca-shares').value=e.shares||'';
+  const ownerEl=document.getElementById('dca-owner'); if(ownerEl) ownerEl.value=_ownerOf(e);
   const b=document.getElementById('dcaSingleSubmit'); if(b) b.textContent='確認更新';
   f.scrollIntoView({behavior:'smooth',block:'center'});
 }
@@ -405,12 +443,13 @@ function addDcaEntry(){
   const amt=parseFloat(document.getElementById('dca-amt').value)||0;
   const price=parseFloat(document.getElementById('dca-price').value)||0;
   const shares=parseInt(document.getElementById('dca-shares').value)||(price>0?Math.floor(amt/price):0);
+  const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
   if(!tk||!date||!amt||!price) return;
   if(editingDcaId!==null){
     const e=DCA_ENTRIES.find(x=>x.id===editingDcaId);
-    if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,pending:false}); }
+    if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,owner,pending:false}); }
   } else {
-    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares});
+    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares,owner});
   }
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
@@ -1023,9 +1062,10 @@ function addDcaPlan(){
   const end=document.getElementById('dca-end').value;
   const day=parseInt(document.getElementById('dca-day').value)||15;
   const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
+  const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
   if(!tk||!start||!amt) return;
   const dates=getDcaPlanDates(start,end,day);
-  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,pending:!d.past});});
+  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,owner,pending:!d.past});});
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';

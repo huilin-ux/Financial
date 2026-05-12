@@ -384,6 +384,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
 </div>
 <div id="tab-dca" class="section">
+  <div id="dcaOwnerFilter" style="display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
   <div class="g4" style="margin-bottom:12px" id="dcaSummaryGrid"></div>
   <div class="panel" style="margin-bottom:10px">
     <div class="phead" style="cursor:pointer" onclick="toggleDcaForm()"><div class="plabel">+ 新增定期定額計畫</div><span id="dcaFormArrow" style="font-family:var(--mono);font-size:14px;color:var(--text-dim)">▼</span></div>
@@ -396,6 +397,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
         <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票代號</div><input id="dca-tk" class="finput" placeholder="006208" oninput="autoName(this.value,'dca-nm')"></div>
         <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票名稱</div><input id="dca-nm" class="finput" placeholder="自動帶入"></div>
       </div>
+      <div style="margin-bottom:10px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">帳戶（誰的）</div><input id="dca-owner" class="finput" placeholder="自己（小孩、媽媽…等都可自訂）" list="dcaOwnerList"><datalist id="dcaOwnerList"></datalist></div>
       <div id="dca-plan-fields">
         <div class="g2" style="gap:10px;margin-bottom:10px">
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">開始日期</div><input id="dca-start" class="finput" type="date"></div>
