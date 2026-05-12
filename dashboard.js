@@ -309,7 +309,7 @@ function renderDCA(){
     const avgPts=entries.filter(e=>e.price).map((e,i)=>{cumAmt+=e.amt;cumShares+=e.shares;return `${pad+i*xStep},${CH-pad-(cumAmt/cumShares-mn)*yScale}`;}).join(' ');
     const entryRows=entries.map(e=>{
       const isPending=e.pending||!e.price;
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div>`;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
     }).join('');
     container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${tkAvg.toFixed(2)}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
   });
@@ -348,20 +348,50 @@ function toggleDcaForm(){
   f.style.display=open?'block':'none';
   arrow.textContent=open?'▲':'▼';
   if(open){const today=new Date().toISOString().split('T')[0];document.getElementById('dca-date').value=today;}
+  else resetDcaFormUI();
 }
 
+let editingDcaId=null;
+function resetDcaFormUI(){
+  editingDcaId=null;
+  const b=document.getElementById('dcaSingleSubmit');
+  if(b) b.textContent='確認新增';
+}
+function editDcaEntry(id){
+  const e=DCA_ENTRIES.find(x=>x.id===id);
+  if(!e) return;
+  editingDcaId=id;
+  const f=document.getElementById('dcaForm');
+  if(f.style.display==='none'){ f.style.display='block'; document.getElementById('dcaFormArrow').textContent='▲'; }
+  // Force single-record mode (editing one entry, not creating a plan)
+  setDcaMode('single', document.getElementById('mode-single'));
+  document.getElementById('dca-tk').value=e.tk||'';
+  document.getElementById('dca-nm').value=e.nm||'';
+  document.getElementById('dca-date').value=e.date||'';
+  document.getElementById('dca-amt').value=e.amt||'';
+  document.getElementById('dca-price').value=e.price||'';
+  document.getElementById('dca-shares').value=e.shares||'';
+  const b=document.getElementById('dcaSingleSubmit'); if(b) b.textContent='確認更新';
+  f.scrollIntoView({behavior:'smooth',block:'center'});
+}
 function addDcaEntry(){
   const tk=document.getElementById('dca-tk').value.trim();
   const nm=document.getElementById('dca-nm').value.trim();
   const date=document.getElementById('dca-date').value;
   const amt=parseFloat(document.getElementById('dca-amt').value)||0;
   const price=parseFloat(document.getElementById('dca-price').value)||0;
-  const shares=parseInt(document.getElementById('dca-shares').value)||Math.floor(amt/price);
+  const shares=parseInt(document.getElementById('dca-shares').value)||(price>0?Math.floor(amt/price):0);
   if(!tk||!date||!amt||!price) return;
-  DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares});
+  if(editingDcaId!==null){
+    const e=DCA_ENTRIES.find(x=>x.id===editingDcaId);
+    if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,pending:false}); }
+  } else {
+    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares});
+  }
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';
+  resetDcaFormUI();
   saveData(); renderDCA();
 }
 
