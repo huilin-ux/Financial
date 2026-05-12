@@ -60,7 +60,9 @@ async function saveToCloud() {
       method: 'POST',
       body: JSON.stringify(body),
       // Apps Script Web App needs this content-type quirk:
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      // keepalive: let POST complete even if user navigates / refreshes before fetch resolves
+      keepalive: true
     });
     return res.ok;
   } catch (e) {
@@ -101,7 +103,20 @@ function saveData() {
   localStorage.setItem('invest_os_data', JSON.stringify({
     TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId
   }));
-  if (getCloudUrl()) saveToCloud();
+  if (getCloudUrl()) {
+    setCloudStatus('🔄 同步中…');
+    localStorage.setItem('invest_os_dirty', '1');
+    saveToCloud().then(ok => {
+      if (ok) {
+        localStorage.removeItem('invest_os_dirty');
+        setCloudStatus('🟢 已同步至 Google Sheet');
+        updateLastSync_();
+        setTimeout(() => setCloudStatus('🟢 已連動 Google Sheet'), 2000);
+      } else {
+        setCloudStatus('🔴 同步失敗，本機保留');
+      }
+    });
+  }
 }
 
 const saved = loadData();
@@ -879,6 +894,19 @@ function skipCloudSetup(){
 async function bootstrap(){
   if(!getCloudUrl()&&!localStorage.getItem('cloud_setup_skipped')){
     showCloudSetup();return;
+  }
+  // If local has unpushed changes, don't let the cloud pull overwrite them.
+  // Try to push them up first, then continue with local state.
+  if (getCloudUrl() && localStorage.getItem('invest_os_dirty')) {
+    setCloudStatus('🟡 偵測到未同步資料，重試推送…');
+    const ok = await saveToCloud();
+    if (ok) {
+      localStorage.removeItem('invest_os_dirty');
+      setCloudStatus('🟢 已同步至 Google Sheet');
+    } else {
+      setCloudStatus('🔴 仍無法同步，本機保留');
+    }
+    if (loadData()) { renderAll(); return; }
   }
   const cloud = await loadFromCloud();
   if (cloud) {
