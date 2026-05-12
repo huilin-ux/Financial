@@ -21,9 +21,9 @@ For continuous local syncing while editing:
 npm run gas:watch
 ```
 
-## GitHub Actions auto-push
+## Optional GitHub Actions auto-push
 
-The workflow in `.github/workflows/apps-script-push.yml` pushes to Apps Script whenever `main` changes `Code.gs` or the Apps Script config files.
+You can also make GitHub push to Apps Script automatically whenever `main` changes `Code.gs`.
 
 One repository secret is required:
 
@@ -37,4 +37,51 @@ GitHub path:
 
 ```text
 Settings -> Secrets and variables -> Actions -> New repository secret
+```
+
+Then add this workflow at `.github/workflows/apps-script-push.yml`:
+
+```yaml
+name: Push Apps Script
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Code.gs
+      - appsscript.json
+      - .clasp.json
+      - package.json
+      - package-lock.json
+      - .github/workflows/apps-script-push.yml
+  workflow_dispatch:
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install clasp
+        run: npm install
+
+      - name: Write clasp credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "Missing repository secret: CLASPRC_JSON"
+            exit 1
+          fi
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+
+      - name: Push files to Apps Script
+        run: npm run gas:push
 ```
