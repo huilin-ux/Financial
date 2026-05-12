@@ -391,14 +391,17 @@ function getWatchlist() {
     if (!sh) throw new Error('找不到「向錢進」工作表');
     const data = sh.getDataRange().getValues();
     const rows = [];
-    // Header detection: plan_shares is an optional 8th column; back-compat with old 7-col sheets
+    // Optional columns: plan_shares / exit_price / exit_date — back-compat
+    // with older sheets that only have the original 7 columns.
     const header = data[0] || [];
-    const planSharesIdx = header.findIndex(h => String(h).trim() === 'plan_shares');
+    const idxOf = (n) => header.findIndex(h => String(h).trim() === n);
+    const planSharesIdx = idxOf('plan_shares');
+    const exitPriceIdx = idxOf('exit_price');
+    const exitDateIdx = idxOf('exit_date');
     for (let i = 1; i < data.length; i++) {
       const [tk, nm, buy, tp, sl, source, status] = data[i];
       if (!tk) continue;
       const st = String(status || '').trim();
-      if (st === 'sold_profit' || st === 'sold_loss') continue;
       rows.push({
         stock_tk: String(tk).trim(),
         stock_nm: String(nm || '').trim(),
@@ -406,6 +409,8 @@ function getWatchlist() {
         take_profit: Number(tp) || 0,
         stop_loss: Number(sl) || 0,
         plan_shares: planSharesIdx >= 0 ? (Number(data[i][planSharesIdx]) || 0) : 0,
+        exit_price: exitPriceIdx >= 0 ? (Number(data[i][exitPriceIdx]) || 0) : 0,
+        exit_date: exitDateIdx >= 0 ? String(data[i][exitDateIdx] || '').trim() : '',
         source: String(source || '').trim(),
         status: st || 'watching',
         price: getPrice(String(tk).trim()) || 0
@@ -504,8 +509,11 @@ function writeWatchlist_(rows, deletedKeys) {
   // (e.g. ones the LINE Bot just appended while the dashboard was offline).
   const data = sh.getDataRange().getValues();
   const headerRow = (data[0] && data[0].length >= 7) ? data[0]
-    : ['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares'];
-  const planSharesIdx = headerRow.findIndex(h => String(h).trim() === 'plan_shares');
+    : ['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares', 'exit_price', 'exit_date'];
+  const idxOf = (n) => headerRow.findIndex(h => String(h).trim() === n);
+  const planSharesIdx = idxOf('plan_shares');
+  const exitPriceIdx = idxOf('exit_price');
+  const exitDateIdx = idxOf('exit_date');
   const existing = {};
   for (let i = 1; i < data.length; i++) {
     const tk = String(data[i][0] || '').trim();
@@ -518,7 +526,9 @@ function writeWatchlist_(rows, deletedKeys) {
       stop_loss: Number(data[i][4]) || 0,
       source: String(data[i][5] || '').trim(),
       status: String(data[i][6] || 'watching').trim(),
-      plan_shares: planSharesIdx >= 0 ? (Number(data[i][planSharesIdx]) || 0) : 0
+      plan_shares: planSharesIdx >= 0 ? (Number(data[i][planSharesIdx]) || 0) : 0,
+      exit_price: exitPriceIdx >= 0 ? (Number(data[i][exitPriceIdx]) || 0) : 0,
+      exit_date: exitDateIdx >= 0 ? String(data[i][exitDateIdx] || '').trim() : ''
     };
   }
 
@@ -534,7 +544,9 @@ function writeWatchlist_(rows, deletedKeys) {
       stop_loss: Number(r.stop_loss) || 0,
       source: r.source || '',
       status: r.status || 'watching',
-      plan_shares: Number(r.plan_shares) || 0
+      plan_shares: Number(r.plan_shares) || 0,
+      exit_price: Number(r.exit_price) || 0,
+      exit_date: String(r.exit_date || '').trim()
     };
   });
 
@@ -545,10 +557,10 @@ function writeWatchlist_(rows, deletedKeys) {
   });
 
   sh.clear();
-  sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares']);
+  sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares', 'exit_price', 'exit_date']);
   Object.values(existing).forEach(r => sh.appendRow([
     r.stock_tk, r.stock_nm, r.buy_price, r.take_profit,
-    r.stop_loss, r.source, r.status, r.plan_shares
+    r.stop_loss, r.source, r.status, r.plan_shares, r.exit_price, r.exit_date
   ]));
 }
 
