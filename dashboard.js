@@ -596,7 +596,8 @@ function addTrade(){
 
 // ========== ALERTS (向錢進) ==========
 let alFilter='all';
-function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter:not(#tradeStatsToggle)').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function toggleTradeStats(btn){const sec=document.getElementById('tradeStatsSection');const open=sec.style.display!=='none';sec.style.display=open?'none':'block';btn.classList.toggle('active',!open);}
 const AL_STATUS={watching:{label:'👀 追蹤中',cls:'watching'},holding:{label:'💼 持有中',cls:'holding'},sold_profit:{label:'✅ 獲利出場',cls:'sold_profit'},sold_loss:{label:'❌ 停損出場',cls:'sold_loss'}};
 
 function renderAL(){
