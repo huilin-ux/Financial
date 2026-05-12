@@ -437,7 +437,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div id="al-summary" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
   <button class="addtrig" onclick="toggleForm()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>新增向錢進</button>
   <div class="addpanel" id="addpanel">
-    <div style="font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--amber-dim);margin-bottom:13px">// NEW · 向錢進</div>
+    <div id="addpanelTitle" style="font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--amber-dim);margin-bottom:13px">// NEW · 向錢進</div>
     <div class="g2" style="gap:10px;margin-bottom:10px">
       <div class="fg"><label class="flbl">股票代號</label><input class="finput" id="fi-tk" placeholder="2330" oninput="autoName(this.value,'fi-nm')"></div>
       <div class="fg"><label class="flbl">股票名稱</label><input class="finput" id="fi-nm" placeholder="台積電"></div>
@@ -445,7 +445,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div class="fg"><label class="flbl">計劃股數</label><input class="finput" id="fi-shares" type="number" placeholder="1000（=1張，可填零股）"></div>
       <div class="fg"><label class="flbl">停利價 🎯</label><input class="finput" id="fi-tp" type="number" placeholder="1200"></div>
       <div class="fg"><label class="flbl">停損價 🛑</label><input class="finput" id="fi-stop" type="number" placeholder="950"></div>
-      <div class="fg"><label class="flbl">初始狀態</label><select class="finput" id="fi-status"><option value="watching">👀 追蹤中（尚未買進）</option><option value="holding">💼 持有中（已買進）</option></select></div>
+      <div class="fg"><label class="flbl">狀態</label><select class="finput" id="fi-status"><option value="watching">👀 追蹤中（尚未買進）</option><option value="holding">💼 持有中（已買進）</option><option value="sold_profit">✅ 獲利出場</option><option value="sold_loss">❌ 停損出場</option></select></div>
     </div>
     <div class="fg" style="margin-bottom:10px">
       <label class="flbl" style="margin-bottom:8px;display:block">消息來源</label>
@@ -456,7 +456,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       </div>
     </div>
     <div class="fg" style="margin-bottom:12px"><label class="flbl">筆記（可選）</label><input class="finput" id="fi-note" placeholder="進場理由、觀察重點…"></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-p" onclick="addAlert()">確認新增</button><button class="btn btn-g" onclick="toggleForm()">取消</button></div>
+    <div style="display:flex;gap:8px"><button id="addpanelSubmit" class="btn btn-p" onclick="addAlert()">確認新增</button><button class="btn btn-g" onclick="toggleForm()">取消</button></div>
   </div>
   <div id="alist"></div>
   <div class="ibox" style="margin-top:12px"><div class="ilbl">向錢進使用原則</div><div class="ibody">設定好<strong style="color:var(--text-primary)">買進價＋停利＋停損</strong>，到了無腦執行，克服人性弱點。停損不是失敗，是保護本金的紀律。</div></div>

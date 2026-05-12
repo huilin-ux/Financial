@@ -410,10 +410,11 @@ function renderAL(){
     if(nearBuy&&isWatching)cardAlert='price-near-buy';
     if(nearStop&&isHolding)cardAlert='price-near-stop';
     const fillCol=pos<40?'var(--green)':pos>75?'var(--amber)':'var(--blue)';
+    const editBtn=`<button class="al-action-btn" onclick="editAlert(${a.id})">✏️ 編輯</button>`;
     let actions='';
-    if(isWatching) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">✅ 標記買進</button><button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
-    else if(isHolding) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'sold_profit')">✅ 獲利出場</button><button class="al-action-btn danger" onclick="setALStatus(${a.id},'sold_loss')">🛑 停損出場</button><button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
-    else actions=`<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
+    if(isWatching) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">✅ 標記買進</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
+    else if(isHolding) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'sold_profit')">✅ 獲利出場</button><button class="al-action-btn danger" onclick="setALStatus(${a.id},'sold_loss')">🛑 停損出場</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
+    else actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">↩️ 撤回出場</button>${editBtn}<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     const sharesLabel=a.shares?` ｜ 計劃 ${a.shares.toLocaleString()} 股${a.shares>=1000&&a.shares%1000===0?` (${a.shares/1000} 張)`:a.shares<1000?' (零股)':''}`:'';
     return `<div class="al-card ${st.cls} ${cardAlert}"><div class="al-head"><div class="al-stock"><div class="al-tk">${a.tk} <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">${a.nm}</span></div><div class="al-src">情報來源：${a.src}${sharesLabel}</div></div><div style="text-align:right;flex-shrink:0;margin-left:12px"><div class="al-price-lbl">目前股價</div><div class="al-price-big" style="color:${priceCol}">$${a.p||'—'}</div><div style="margin-top:6px"><span class="al-badge ${st.cls}">${st.label}</span></div></div></div><div class="al-trio"><div class="al-trio-item"><div class="al-trio-lbl">買進價</div><div class="al-trio-val" style="color:var(--green)">$${a.b||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停利價 🎯</div><div class="al-trio-val" style="color:var(--amber)">$${a.tp||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停損價 🛑</div><div class="al-trio-val" style="color:var(--red)">$${a.stop||'—'}</div></div></div>${!isSold&&a.p&&a.b&&a.tp?`<div class="al-track"><div class="al-track-lbl"><span style="color:var(--red)">停損 $${a.stop||'—'}</span><span>買進 $${a.b}</span><span style="color:var(--text-secondary)">現價 $${a.p}</span><span style="color:var(--amber)">停利 $${a.tp}</span></div><div class="al-track-bar"><div class="al-track-fill" style="width:${pos}%;background:linear-gradient(90deg,var(--green),${fillCol})"></div><div class="al-track-dot" style="left:${pos}%;background:${fillCol}"></div>${stopPos!==null?`<div class="al-stop-line" style="left:${stopPos}%;background:var(--red)"></div>`:''}</div></div>`:''}${a.note?`<div class="al-note"><span style="font-size:16px;flex-shrink:0">📖</span>${a.note}</div>`:''}<div class="al-actions">${actions}</div></div>`;
   }).join('');
@@ -422,9 +423,34 @@ function renderAL(){
 function setALStatus(id,newStatus){const a=AL.find(x=>x.id===id);if(a){a.status=newStatus;saveData();renderAL();renderTA();}}
 function clearSrcChips(){document.querySelectorAll('#srcChips .src-chip').forEach(c=>c.classList.remove('selected'));}
 function toggleForm(){
-  document.getElementById('addpanel').classList.toggle('open');
-  if(document.getElementById('addpanel').classList.contains('open')) renderSrcChips('srcChips','fi-src');
-  else clearSrcChips();
+  const p=document.getElementById('addpanel');
+  p.classList.toggle('open');
+  if(p.classList.contains('open')) renderSrcChips('srcChips','fi-src');
+  else { clearSrcChips(); resetAlertFormUI(); }
+}
+let editingAlertId=null;
+function resetAlertFormUI(){
+  editingAlertId=null;
+  const t=document.getElementById('addpanelTitle'); if(t) t.textContent='// NEW · 向錢進';
+  const s=document.getElementById('addpanelSubmit'); if(s) s.textContent='確認新增';
+}
+function editAlert(id){
+  const a=AL.find(x=>x.id===id); if(!a) return;
+  editingAlertId=id;
+  document.getElementById('fi-tk').value=a.tk||'';
+  document.getElementById('fi-nm').value=a.nm||'';
+  document.getElementById('fi-b').value=a.b||'';
+  document.getElementById('fi-tp').value=a.tp||'';
+  document.getElementById('fi-stop').value=a.stop||'';
+  document.getElementById('fi-shares').value=a.shares||'';
+  document.getElementById('fi-src').value=a.src||'';
+  document.getElementById('fi-note').value=a.note||'';
+  document.getElementById('fi-status').value=a.status||'watching';
+  const t=document.getElementById('addpanelTitle'); if(t) t.textContent='// EDIT · 向錢進';
+  const s=document.getElementById('addpanelSubmit'); if(s) s.textContent='確認更新';
+  const p=document.getElementById('addpanel'); p.classList.add('open');
+  renderSrcChips('srcChips','fi-src');
+  p.scrollIntoView({behavior:'smooth',block:'center'});
 }
 function addAlert(){
   const tk=document.getElementById('fi-tk').value.trim();
@@ -437,11 +463,17 @@ function addAlert(){
   const note=document.getElementById('fi-note').value.trim();
   const status=document.getElementById('fi-status').value||'watching';
   if(!tk||!b) return;
-  const mid=b+(tp-b)*0.3;
-  AL.push({id:nid++,tk,nm:nm||tk,b,tp,stop,shares,src,note,status,p:parseFloat(mid.toFixed(1))});
+  if(editingAlertId!==null){
+    const a=AL.find(x=>x.id===editingAlertId);
+    if(a){ Object.assign(a,{tk,nm:nm||tk,b,tp,stop,shares,src,note,status}); }
+  } else {
+    const mid=b+(tp-b)*0.3;
+    AL.push({id:nid++,tk,nm:nm||tk,b,tp,stop,shares,src,note,status,p:parseFloat(mid.toFixed(1))});
+  }
   ['fi-tk','fi-nm','fi-b','fi-tp','fi-stop','fi-shares','fi-src','fi-note'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   clearSrcChips();
   document.getElementById('addpanel').classList.remove('open');
+  resetAlertFormUI();
   saveData(); renderAL();
 }
 function delA(id){AL=AL.filter(a=>a.id!==id);saveData();renderAL();}
