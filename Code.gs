@@ -56,7 +56,12 @@ function getSheet_() {
 
 function doGet(e) {
   try {
-    if ((e.parameter || {}).key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
+    const p = e.parameter || {};
+    if (p.key !== getApiKey_()) return apiResp_({ error: 'unauthorized' }, 401);
+    // Stock name lookup: ?action=name&tk=2465
+    if (p.action === 'name' && p.tk) {
+      return apiResp_({ name: getStockName(p.tk) || '' });
+    }
     return apiResp_({
       holdings: getHoldings(),
       watchlist: getWatchlist(),
@@ -590,6 +595,41 @@ function getPrice(tk) {
     }
   }
   return null;
+}
+
+/**
+ * Fetch the Chinese stock name from Yahoo Finance (meta.shortName).
+ * Cached in script properties so we don't re-hit Yahoo for the same code.
+ */
+function getStockName(tk) {
+  const code = String(tk).trim();
+  if (!code) return '';
+  const props = PropertiesService.getScriptProperties();
+  const cached = props.getProperty('stock_name_' + code);
+  if (cached) return cached;
+  let name = fetchYahooName_(code);
+  if (!name && /^\d{4}$/.test(code)) name = fetchYahooName_('00' + code);
+  if (name) {
+    try { props.setProperty('stock_name_' + code, name); } catch(e) {}
+  }
+  return name || '';
+}
+
+function fetchYahooName_(code) {
+  try {
+    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
+      + encodeURIComponent(code) + '.TW?interval=1d&range=1d';
+    const res = UrlFetchApp.fetch(url, {
+      muteHttpExceptions: true,
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
+    if (res.getResponseCode() !== 200) return null;
+    const json = JSON.parse(res.getContentText());
+    const meta = json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+    return (meta && (meta.shortName || meta.longName)) || null;
+  } catch (err) {
+    return null;
+  }
 }
 
 function fetchYahooPrice_(code) {
