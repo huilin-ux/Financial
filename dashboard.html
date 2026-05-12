@@ -293,6 +293,12 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   #tab-portfolio.section.active > #allocPanel{grid-area:alloc;margin-bottom:0}
   #tab-portfolio.section.active > #holdingsPanel{grid-area:holdings;margin-bottom:0}
   #tab-portfolio.section.active > #trigPanel{grid-area:trig;margin-bottom:0}
+  /* 持倉 tab: 2-col holdings cards */
+  #hbody{display:grid;grid-template-columns:1fr 1fr}
+  #hbody > .hcard{border-right:1px solid rgba(26,37,53,0.7)}
+  #hbody > .hcard:nth-child(2n){border-right:none}
+  #hbody > .hcard:nth-last-child(-n+2):nth-child(odd){border-bottom:none}
+  #hbody > .hcard:last-child:nth-child(odd){grid-column:1 / -1;border-right:none}
   /* 向錢進 tab: 2-col cards */
   #alist{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #alist > .al-card{margin-bottom:0}
