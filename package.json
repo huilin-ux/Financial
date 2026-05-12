@@ -6,7 +6,9 @@
     "gas:push": "clasp push --force",
     "gas:pull": "clasp pull",
     "gas:open": "clasp open",
-    "gas:watch": "clasp push --watch"
+    "gas:watch": "clasp push --watch",
+    "gas:deploy:new": "clasp deploy --description \"Automated deployment\"",
+    "gas:deploy:update": "clasp deploy --deploymentId \"$APPS_SCRIPT_DEPLOYMENT_ID\" --description \"Automated deployment\""
   },
   "devDependencies": {
     "@google/clasp": "^2.4.2"
