@@ -231,6 +231,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 .hcard-bar-track{height:4px;background:rgba(255,255,255,0.07);border-radius:3px;position:relative}
 .hcard-bar-fill{height:100%;border-radius:3px;position:absolute;left:0;top:0;transition:width 0.6s ease}
 .hcard-bar-dot{position:absolute;top:-4px;width:12px;height:12px;border-radius:50%;transform:translateX(-50%);border:2px solid #050608;transition:left 0.6s ease}
+.hcard-actions{display:flex;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(26,37,53,0.5)}
 .hint-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);color:var(--text-dim);font-size:11px;font-weight:700;cursor:pointer;margin-left:6px;flex-shrink:0;transition:all 0.15s;line-height:1;vertical-align:middle;position:relative}
 .hint-btn:hover{background:rgba(255,184,50,0.15);border-color:var(--amber);color:var(--amber)}
 .phead .hint-btn{margin-right:auto}
@@ -436,6 +437,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <button class="al-filter" onclick="filterAL('sold_profit',this)">✅ 獲利出場</button>
     <button class="al-filter" onclick="filterAL('sold_loss',this)">❌ 停損出場</button>
   </div>
+  <div class="g4" style="margin-bottom:12px" id="alStatsGrid"></div>
   <div id="al-summary" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
   <button class="addtrig" onclick="toggleForm()"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="6" y1="1" x2="6" y2="11"/><line x1="1" y1="6" x2="11" y2="6"/></svg>新增向錢進</button>
   <div class="addpanel" id="addpanel">
