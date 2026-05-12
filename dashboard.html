@@ -296,6 +296,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   /* 向錢進 tab: 2-col cards */
   #alist{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #alist > .al-card{margin-bottom:0}
+  /* If the last card is alone in its row (odd count), let it span both cols */
+  #alist > .al-card:last-child:nth-child(odd){grid-column:1 / -1}
   /* 定期定額 tab: 2-col stock panels */
   #dcaStockPanels{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #dcaStockPanels > .panel{margin-bottom:0}
