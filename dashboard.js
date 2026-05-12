@@ -51,7 +51,7 @@ async function saveToCloud() {
     const body = {
       key: getCloudApiKey(),
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
-      watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,source:a.src,status:a.status})),
+      watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status})),
       dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending})),
       trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
       config: { total_assets: TOTAL_ASSETS }
@@ -71,7 +71,7 @@ async function saveToCloud() {
 
 function cloudToLocal_(data) {
   const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:Number(r.price)||r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
-  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,src:r.source,note:'',status:r.status,p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
+  const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,shares:Number(r.plan_shares)||0,src:r.source,note:'',status:r.status,p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
   const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,pending:!r.active}));
   const cfg = data.config || {};
@@ -414,7 +414,8 @@ function renderAL(){
     if(isWatching) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'holding')">✅ 標記買進</button><button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     else if(isHolding) actions=`<button class="al-action-btn" onclick="setALStatus(${a.id},'sold_profit')">✅ 獲利出場</button><button class="al-action-btn danger" onclick="setALStatus(${a.id},'sold_loss')">🛑 停損出場</button><button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
     else actions=`<button class="al-action-btn danger" onclick="delA(${a.id})">刪除</button>`;
-    return `<div class="al-card ${st.cls} ${cardAlert}"><div class="al-head"><div class="al-stock"><div class="al-tk">${a.tk} <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">${a.nm}</span></div><div class="al-src">情報來源：${a.src}</div></div><div style="text-align:right;flex-shrink:0;margin-left:12px"><div class="al-price-lbl">目前股價</div><div class="al-price-big" style="color:${priceCol}">$${a.p||'—'}</div><div style="margin-top:6px"><span class="al-badge ${st.cls}">${st.label}</span></div></div></div><div class="al-trio"><div class="al-trio-item"><div class="al-trio-lbl">買進價</div><div class="al-trio-val" style="color:var(--green)">$${a.b||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停利價 🎯</div><div class="al-trio-val" style="color:var(--amber)">$${a.tp||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停損價 🛑</div><div class="al-trio-val" style="color:var(--red)">$${a.stop||'—'}</div></div></div>${!isSold&&a.p&&a.b&&a.tp?`<div class="al-track"><div class="al-track-lbl"><span style="color:var(--red)">停損 $${a.stop||'—'}</span><span>買進 $${a.b}</span><span style="color:var(--text-secondary)">現價 $${a.p}</span><span style="color:var(--amber)">停利 $${a.tp}</span></div><div class="al-track-bar"><div class="al-track-fill" style="width:${pos}%;background:linear-gradient(90deg,var(--green),${fillCol})"></div><div class="al-track-dot" style="left:${pos}%;background:${fillCol}"></div>${stopPos!==null?`<div class="al-stop-line" style="left:${stopPos}%;background:var(--red)"></div>`:''}</div></div>`:''}${a.note?`<div class="al-note"><span style="font-size:16px;flex-shrink:0">📖</span>${a.note}</div>`:''}<div class="al-actions">${actions}</div></div>`;
+    const sharesLabel=a.shares?` ｜ 計劃 ${a.shares.toLocaleString()} 股${a.shares>=1000&&a.shares%1000===0?` (${a.shares/1000} 張)`:a.shares<1000?' (零股)':''}`:'';
+    return `<div class="al-card ${st.cls} ${cardAlert}"><div class="al-head"><div class="al-stock"><div class="al-tk">${a.tk} <span style="font-size:15px;font-weight:400;color:var(--text-secondary)">${a.nm}</span></div><div class="al-src">情報來源：${a.src}${sharesLabel}</div></div><div style="text-align:right;flex-shrink:0;margin-left:12px"><div class="al-price-lbl">目前股價</div><div class="al-price-big" style="color:${priceCol}">$${a.p||'—'}</div><div style="margin-top:6px"><span class="al-badge ${st.cls}">${st.label}</span></div></div></div><div class="al-trio"><div class="al-trio-item"><div class="al-trio-lbl">買進價</div><div class="al-trio-val" style="color:var(--green)">$${a.b||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停利價 🎯</div><div class="al-trio-val" style="color:var(--amber)">$${a.tp||'—'}</div></div><div class="al-trio-item"><div class="al-trio-lbl">停損價 🛑</div><div class="al-trio-val" style="color:var(--red)">$${a.stop||'—'}</div></div></div>${!isSold&&a.p&&a.b&&a.tp?`<div class="al-track"><div class="al-track-lbl"><span style="color:var(--red)">停損 $${a.stop||'—'}</span><span>買進 $${a.b}</span><span style="color:var(--text-secondary)">現價 $${a.p}</span><span style="color:var(--amber)">停利 $${a.tp}</span></div><div class="al-track-bar"><div class="al-track-fill" style="width:${pos}%;background:linear-gradient(90deg,var(--green),${fillCol})"></div><div class="al-track-dot" style="left:${pos}%;background:${fillCol}"></div>${stopPos!==null?`<div class="al-stop-line" style="left:${stopPos}%;background:var(--red)"></div>`:''}</div></div>`:''}${a.note?`<div class="al-note"><span style="font-size:16px;flex-shrink:0">📖</span>${a.note}</div>`:''}<div class="al-actions">${actions}</div></div>`;
   }).join('');
 }
 
@@ -431,13 +432,14 @@ function addAlert(){
   const b=parseFloat(document.getElementById('fi-b').value)||0;
   const tp=parseFloat(document.getElementById('fi-tp').value)||0;
   const stop=parseFloat(document.getElementById('fi-stop').value)||0;
+  const shares=parseInt(document.getElementById('fi-shares').value)||0;
   const src=document.getElementById('fi-src').value.trim()||'未知來源';
   const note=document.getElementById('fi-note').value.trim();
   const status=document.getElementById('fi-status').value||'watching';
   if(!tk||!b) return;
   const mid=b+(tp-b)*0.3;
-  AL.push({id:nid++,tk,nm:nm||tk,b,tp,stop,src,note,status,p:parseFloat(mid.toFixed(1))});
-  ['fi-tk','fi-nm','fi-b','fi-tp','fi-stop','fi-src','fi-note'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  AL.push({id:nid++,tk,nm:nm||tk,b,tp,stop,shares,src,note,status,p:parseFloat(mid.toFixed(1))});
+  ['fi-tk','fi-nm','fi-b','fi-tp','fi-stop','fi-shares','fi-src','fi-note'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   clearSrcChips();
   document.getElementById('addpanel').classList.remove('open');
   saveData(); renderAL();

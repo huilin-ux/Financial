@@ -381,6 +381,9 @@ function getWatchlist() {
     if (!sh) throw new Error('找不到「向錢進」工作表');
     const data = sh.getDataRange().getValues();
     const rows = [];
+    // Header detection: plan_shares is an optional 8th column; back-compat with old 7-col sheets
+    const header = data[0] || [];
+    const planSharesIdx = header.findIndex(h => String(h).trim() === 'plan_shares');
     for (let i = 1; i < data.length; i++) {
       const [tk, nm, buy, tp, sl, source, status] = data[i];
       if (!tk) continue;
@@ -392,6 +395,7 @@ function getWatchlist() {
         buy_price: Number(buy) || 0,
         take_profit: Number(tp) || 0,
         stop_loss: Number(sl) || 0,
+        plan_shares: planSharesIdx >= 0 ? (Number(data[i][planSharesIdx]) || 0) : 0,
         source: String(source || '').trim(),
         status: st || 'watching',
         price: getPrice(String(tk).trim()) || 0
@@ -482,10 +486,10 @@ function writeWatchlist_(rows) {
   const ss = getSheet_();
   const sh = ss.getSheetByName('向錢進') || ss.insertSheet('向錢進');
   sh.clear();
-  sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status']);
+  sh.appendRow(['stock_tk', 'stock_nm', 'buy_price', 'take_profit', 'stop_loss', 'source', 'status', 'plan_shares']);
   rows.forEach(r => sh.appendRow([
     r.stock_tk || '', r.stock_nm || '', r.buy_price || 0, r.take_profit || 0,
-    r.stop_loss || 0, r.source || '', r.status || 'watching'
+    r.stop_loss || 0, r.source || '', r.status || 'watching', r.plan_shares || 0
   ]));
 }
 
