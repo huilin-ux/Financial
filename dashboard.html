@@ -303,10 +303,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   #tab-risk.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #tab-risk.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
   #tab-risk.section.active > .panel{margin-bottom:0}
-  /* 交易記錄 tab: 2-col layout (stretch) */
-  #tab-log.section.active{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  #tab-log.section.active > .g2{grid-column:1 / -1;margin-bottom:0}
-  #tab-log.section.active > .panel{margin-bottom:0}
 }
 @media(min-width:1200px){
   .shell{max-width:1280px;padding:20px 28px 80px}
@@ -337,9 +333,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <button class="ntab" onclick="go('risk',this)"><span class="nnum">02</span>風險管理</button>
   <button class="ntab" onclick="go('dca',this)"><span class="nnum">03</span>定期定額</button>
   <button class="ntab" onclick="go('alerts',this)"><span class="nnum">04</span>向錢進</button>
-  <button class="ntab" onclick="go('log',this)"><span class="nnum">05</span>交易記錄</button>
-  <button class="ntab" onclick="go('report',this)"><span class="nnum">06</span>AI 日報</button>
-  <button class="ntab" onclick="go('settings',this)"><span class="nnum">07</span>設定</button>
+  <button class="ntab" onclick="go('report',this)"><span class="nnum">05</span>AI 日報</button>
+  <button class="ntab" onclick="go('settings',this)"><span class="nnum">06</span>設定</button>
 </nav>
 <main class="shell">
 <div id="tab-portfolio" class="section active">
@@ -423,14 +418,6 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div id="dcaStockPanels"></div>
   <div class="panel" id="dcaStrategyPanel"><div class="phead"><div class="plabel">定期定額策略說明</div><button class="hint-btn" onclick="showHint('dca', event)" title="說明">?</button></div><div class="pbody" id="dcaStrategyBody"></div></div>
 </div>
-<div id="tab-log" class="section">
-  <div class="g2" style="margin-bottom:12px">
-    <div class="stat" data-g="W"><div class="slbl">交易勝率</div><div class="sval up" id="totalWR">—</div><div class="sdelta" style="color:var(--text-dim)">已結算交易</div></div>
-    <div class="stat" data-g="$"><div class="slbl">已實現損益</div><div class="sval" id="totalRPnl">—</div><div class="sdelta" style="color:var(--text-dim)">歷史累計</div></div>
-  </div>
-  <div class="panel"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
-  <div class="panel"><div class="phead"><div class="plabel">交易記錄</div><button class="hint-btn" onclick="showHint('trades', event)" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
-</div>
 <div id="tab-alerts" class="section">
   <div style="display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
     <button class="al-filter active" onclick="filterAL('all',this)">全部</button>
@@ -465,7 +452,13 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div style="display:flex;gap:8px"><button id="addpanelSubmit" class="btn btn-p" onclick="addAlert()">確認新增</button><button class="btn btn-g" onclick="toggleForm()">取消</button></div>
   </div>
   <div id="alist"></div>
-  <div class="ibox" style="margin-top:12px"><div class="ilbl">向錢進使用原則</div><div class="ibody">設定好<strong style="color:var(--text-primary)">買進價＋停利＋停損</strong>，到了無腦執行，克服人性弱點。停損不是失敗，是保護本金的紀律。</div></div>
+  <div class="g2" style="margin:18px 0 12px">
+    <div class="stat" data-g="W"><div class="slbl">交易勝率</div><div class="sval up" id="totalWR">—</div><div class="sdelta" style="color:var(--text-dim)">已結算交易</div></div>
+    <div class="stat" data-g="$"><div class="slbl">已實現損益</div><div class="sval" id="totalRPnl">—</div><div class="sdelta" style="color:var(--text-dim)">歷史累計</div></div>
+  </div>
+  <div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
+  <div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">交易紀錄（已結算）</div><button class="hint-btn" onclick="showHint('trades', event)" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增外部交易</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
+  <div class="ibox" style="margin-top:12px"><div class="ilbl">向錢進使用原則</div><div class="ibody">設定好<strong style="color:var(--text-primary)">買進價＋停利＋停損</strong>，到了無腦執行，克服人性弱點。停損不是失敗，是保護本金的紀律。賣出後系統會自動把這筆收進上面「交易紀錄」算勝率。</div></div>
 </div>
 <div id="tab-report" class="section">
   <div class="panel" style="margin-bottom:12px">
