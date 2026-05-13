@@ -8,6 +8,7 @@ on:
       - Code.gs
       - appsscript.json
       - .clasp.json
+      - .claspignore
       - package.json
       - package-lock.json
       - .github/workflows/apps-script-push.yml
