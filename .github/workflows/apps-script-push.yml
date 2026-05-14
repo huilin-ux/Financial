@@ -17,6 +17,8 @@ on:
 jobs:
   push:
     runs-on: ubuntu-latest
+    env:
+      APPS_SCRIPT_DEPLOYMENT_ID: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -43,7 +45,5 @@ jobs:
         run: npm run gas:push
 
       - name: Update Apps Script deployment
-        if: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID != '' }}
-        env:
-          APPS_SCRIPT_DEPLOYMENT_ID: ${{ secrets.APPS_SCRIPT_DEPLOYMENT_ID }}
+        if: env.APPS_SCRIPT_DEPLOYMENT_ID != ''
         run: npm run gas:deploy:update
