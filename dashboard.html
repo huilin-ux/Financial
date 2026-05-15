@@ -407,12 +407,13 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
         <button onclick="addDcaPlan()" class="btn btn-p" style="width:100%">確認建立計畫</button>
       </div>
       <div id="dca-single-fields" style="display:none">
-        <div class="g2" style="gap:10px;margin-bottom:10px">
+        <div class="g2" style="gap:10px;margin-bottom:6px">
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款日期</div><input id="dca-date" class="finput" type="date"></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款金額 $</div><input id="dca-amt" class="finput" type="number" placeholder="10000"></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">成交價格</div><input id="dca-price" class="finput" type="number" placeholder="105.5"></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">買入股數</div><input id="dca-shares" class="finput" type="number" placeholder="94"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">買入股數</div><input id="dca-shares" class="finput" type="number" placeholder="例：總持股 500"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款金額 $（選填）</div><input id="dca-amt" class="finput" type="number" placeholder="總投入估算"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">成交價格（選填）</div><input id="dca-price" class="finput" type="number" placeholder="平均成本估算"></div>
         </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px;line-height:1.5">💡 加入幾年前的舊持股？股數填現在總持股；金額 / 成交價只要填一個（不記得就填估算值），另一個會自動算</div>
         <button id="dcaSingleSubmit" onclick="addDcaEntry()" class="btn btn-p" style="width:100%">確認新增</button>
       </div>
     </div>

@@ -489,11 +489,13 @@ function addDcaEntry(){
   const tk=document.getElementById('dca-tk').value.trim();
   const nm=document.getElementById('dca-nm').value.trim();
   const date=document.getElementById('dca-date').value;
-  const amt=parseFloat(document.getElementById('dca-amt').value)||0;
-  const price=parseFloat(document.getElementById('dca-price').value)||0;
+  let amt=parseFloat(document.getElementById('dca-amt').value)||0;
+  let price=parseFloat(document.getElementById('dca-price').value)||0;
   const shares=parseInt(document.getElementById('dca-shares').value)||(price>0?Math.floor(amt/price):0);
+  if(!amt&&price&&shares) amt=price*shares;
+  if(!price&&amt&&shares) price=amt/shares;
   const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!date||!amt||!price) return;
+  if(!tk||!date||!shares||(!amt&&!price)) return;
   if(editingDcaId!==null){
     const e=DCA_ENTRIES.find(x=>x.id===editingDcaId);
     if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,owner,pending:false}); }
