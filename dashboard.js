@@ -472,7 +472,8 @@ function toggleDcaForm(){
   const open=f.style.display==='none';
   f.style.display=open?'block':'none';
   arrow.textContent=open?'▲':'▼';
-  if(!open) resetDcaFormUI();
+  if(open) initDcaYearSelect();
+  else resetDcaFormUI();
 }
 
 let editingDcaId=null;
@@ -1195,7 +1196,9 @@ function addDCA(){
   const tk=document.getElementById('dca-tk').value.trim();
   const nm=document.getElementById('dca-nm').value.trim()||STOCK_NAMES[tk]||tk;
   const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  const startMonth=document.getElementById('dca-start').value; // YYYY-MM
+  const yr=document.getElementById('dca-start-year').value;
+  const mo=document.getElementById('dca-start-month').value;
+  const startMonth=yr&&mo?yr+'-'+mo:'';
   const day=parseInt(document.getElementById('dca-day').value)||15;
   const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
   const totalShares=parseInt(document.getElementById('dca-total-shares').value)||0;
@@ -1218,7 +1221,13 @@ function addDCA(){
 function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;if(!e.amt){return;}e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
 
 // ========== INIT ==========
-function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}
+function initDcaYearSelect(){
+  const sel=document.getElementById('dca-start-year');
+  if(!sel||sel.options.length>0) return;
+  const now=new Date().getFullYear();
+  for(let y=now;y>=2000;y--){const o=document.createElement('option');o.value=y;o.textContent=y+'年';sel.appendChild(o);}
+}
+function renderAll(){initDcaYearSelect();renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}
 
 function showCloudSetup(){ document.getElementById('cloud-setup').style.display='block'; }
 function hideCloudSetup(){ document.getElementById('cloud-setup').style.display='none'; }
