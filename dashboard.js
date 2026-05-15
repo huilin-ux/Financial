@@ -109,7 +109,7 @@ function loadData() {
 }
 function saveData() {
   localStorage.setItem('invest_os_data', JSON.stringify({
-    TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId
+    TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId, DCA_META
   }));
   if (getCloudUrl()) {
     setCloudStatus('🔄 同步中…');
@@ -136,6 +136,7 @@ let TRADES       = saved ? saved.TRADES       : [];
 let ntid         = saved ? saved.ntid         : 1;
 let DCA_ENTRIES  = saved ? saved.DCA_ENTRIES  : [];
 let dcaNextId    = saved ? saved.dcaNextId    : 1;
+let DCA_META     = saved ? (saved.DCA_META||{}) : {};
 
 
 // ========== SUMMARY STATS ==========
@@ -352,7 +353,6 @@ function renderDcaOwnerFilter(){
 
 function renderDCA(){
   renderDcaOwnerFilter();
-  // Filter entries by selected owner (default = all)
   const VISIBLE=DCA_OWNER_FILTER==='all'
     ? DCA_ENTRIES
     : DCA_ENTRIES.filter(e=>_ownerOf(e)===DCA_OWNER_FILTER);
@@ -362,12 +362,10 @@ function renderDCA(){
   const totalAmt=confirmed.reduce((s,e)=>s+e.amt,0);
   const uniqueTks=Object.keys(byTk);
   const isSingle=uniqueTks.length<=1;
-  // Correct market value: sum each ticker's (own price × own shares).
-  // The old code multiplied total shares by the first ticker's price,
-  // which made the multi-stock summary wildly wrong.
-  let mktVal=0, allPriced=uniqueTks.length>0;
+  let mktVal=0,allPriced=uniqueTks.length>0;
   uniqueTks.forEach(tk=>{
-    const sh=byTk[tk].entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
+    const meta=DCA_META[tk]||{};
+    const sh=meta.totalShares||byTk[tk].entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
     const stockH=H.find(x=>x.tk===tk);
     if(stockH&&stockH.p&&sh>0) mktVal+=stockH.p*sh;
     else if(sh>0) allPriced=false;
@@ -375,18 +373,20 @@ function renderDCA(){
   const pnl=allPriced&&totalAmt>0?mktVal-totalAmt:null;
   const pnlPct=pnl===null?null:(pnl/totalAmt*100);
   const pnlCls=pnl===null?'am':pnl>=0?'up':'dn';
-  // Single-stock metrics (only meaningful when one ticker)
-  const totalShares=confirmed.reduce((s,e)=>s+(e.shares||0),0);
-  const avgCost=totalShares>0?totalAmt/totalShares:0;
   const singleTk=isSingle?uniqueTks[0]:null;
+  const singleMeta=singleTk?(DCA_META[singleTk]||{}):null;
+  const totalSharesCalc=confirmed.reduce((s,e)=>s+(e.shares||0),0);
+  const displayShares=singleMeta?.totalShares||totalSharesCalc;
+  const avgCostCalc=totalSharesCalc>0?totalAmt/totalSharesCalc:0;
+  const displayAvgCost=singleMeta?.avgCost||avgCostCalc;
   const singleCur=singleTk?(H.find(x=>x.tk===singleTk)||{}).p:null;
   const grid=document.getElementById('dcaSummaryGrid');
   if(grid){
     const slot2=isSingle
-      ? `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta ${singleCur&&singleCur>avgCost?'up':singleCur?'dn':'am'}">${singleCur?`現價 ${singleCur} (${singleCur>avgCost?'+':''}${((singleCur-avgCost)/avgCost*100).toFixed(1)}%)`:'—'}</div></div>`
+      ? `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${displayAvgCost?displayAvgCost.toFixed(2):'—'}</div><div class="sdelta ${singleCur&&singleCur>displayAvgCost?'up':singleCur?'dn':'am'}">${singleCur&&displayAvgCost?`現價 ${singleCur} (${singleCur>displayAvgCost?'+':''}${((singleCur-displayAvgCost)/displayAvgCost*100).toFixed(1)}%)`:'—'}</div></div>`
       : `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${uniqueTks.length}</div><div class="sdelta am">${VISIBLE.length} 筆紀錄</div></div>`;
     const slot3=isSingle
-      ? `<div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${totalShares.toLocaleString()}</div><div class="sdelta am">${(totalShares/1000).toFixed(1)} 張</div></div>`
+      ? `<div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${displayShares.toLocaleString()}</div><div class="sdelta am">${(displayShares/1000).toFixed(1)} 張</div></div>`
       : `<div class="stat" data-g="$"><div class="slbl">市值</div><div class="sval ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${mktVal?'$'+Math.round(mktVal).toLocaleString():'—'}</div><div class="sdelta ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${allPriced&&totalAmt?(mktVal>=totalAmt?'▲':'▼')+' vs 投入':'—'}</div></div>`;
     grid.innerHTML=
       `<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${VISIBLE.length} 筆</div></div>`+
@@ -397,31 +397,43 @@ function renderDCA(){
   if(!container) return;
   container.innerHTML='';
   Object.entries(byTk).forEach(([tk,data])=>{
+    const meta=DCA_META[tk]||{};
     const entries=[...data.entries].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const tkAmt=entries.filter(e=>!e.pending).reduce((s,e)=>s+e.amt,0);
-    const tkShares=entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
-    const tkAvg=tkShares>0?tkAmt/tkShares:0;
+    const confirmedEntries=entries.filter(e=>e.price&&!e.pending);
+    const historicalEntries=entries.filter(e=>e.historical&&!e.price);
+    const tkAmt=confirmedEntries.reduce((s,e)=>s+e.amt,0);
+    const tkSharesCalc=confirmedEntries.reduce((s,e)=>s+(e.shares||0),0);
+    const tkShares=meta.totalShares||tkSharesCalc;
+    const tkAvgCalc=tkSharesCalc>0?tkAmt/tkSharesCalc:0;
+    const tkAvg=meta.avgCost||tkAvgCalc;
     const tkH=H.find(x=>x.tk===tk);
     const tkCur=tkH?tkH.p:null;
-    const tkPnl=tkCur&&tkShares?(tkCur-tkAvg)*tkShares:null;
-    const prices=entries.filter(e=>e.price).map(e=>e.price);
+    const tkPnl=tkCur&&tkShares&&tkAvg?(tkCur-tkAvg)*tkShares:null;
+    const prices=confirmedEntries.map(e=>e.price);
     const mn=prices.length?Math.min(...prices)-2:0,mx=prices.length?Math.max(...prices)+2:1;
     const W=280,CH=48,pad=4;
     const xStep=(W-pad*2)/(prices.length-1||1);
     const yScale=(CH-pad*2)/(mx-mn||1);
     const pts=prices.map((p,i)=>`${pad+i*xStep},${CH-pad-(p-mn)*yScale}`).join(' ');
     let cumAmt=0,cumShares=0;
-    const avgPts=entries.filter(e=>e.price).map((e,i)=>{cumAmt+=e.amt;cumShares+=e.shares;return `${pad+i*xStep},${CH-pad-(cumAmt/cumShares-mn)*yScale}`;}).join(' ');
+    const avgPts=confirmedEntries.map((e,i)=>{cumAmt+=e.amt;cumShares+=e.shares;return `${pad+i*xStep},${CH-pad-(cumAmt/cumShares-mn)*yScale}`;}).join(' ');
     const showOwners=getDcaOwners().length>1;
+    const histNote=historicalEntries.length>0?`<div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:10px">約 ${historicalEntries.length} 筆歷史紀錄（成交價不可考）${meta.avgCost?' — 平均成本使用券商 App 數字':''}</div>`:'';
     const entryRows=entries.map(e=>{
-      const isPending=e.pending||!e.price;
+      const isHistorical=e.historical&&!e.price;
+      const isPending=e.pending;
       const ownerBadge=showOwners?`<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:8px;margin-left:6px">👤 ${_ownerOf(e)}</span>`:'';
-      const noAmt=isPending&&!e.amt;
-      const priceCell=isPending?(noAmt?`<span style="font-size:12px;color:var(--text-dim)">點 ✏️ 補填</span>`:`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`):'$'+e.price;
+      let priceCell,sharesCell;
+      if(e.price){priceCell='$'+e.price;sharesCell=e.shares+'股';}
+      else if(isHistorical){priceCell=`<span style="font-size:12px;color:var(--text-dim)">歷史・不可考</span>`;sharesCell='—';}
+      else if(e.amt){priceCell=`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`;sharesCell='待填';}
+      else{priceCell=`<span style="font-size:12px;color:var(--text-dim)">點 ✏️ 補填</span>`;sharesCell='待填';}
       const amtDisplay=e.amt?'$'+e.amt.toLocaleString():'—';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${priceCell}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${amtDisplay}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
+      const opacity=isPending?0.45:isHistorical?0.6:1;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${opacity}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${e.price?'var(--amber)':'var(--text-dim)'}">${priceCell}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${sharesCell}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${amtDisplay}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
     }).join('');
-    container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span><button onclick="deleteDcaStock('${tk}')" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這檔的全部紀錄">🗑️ 刪除整檔</button></div></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${tkAvg.toFixed(2)}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
+    const avgDisplay=tkAvg?tkAvg.toFixed(2):(meta.avgCost?meta.avgCost.toFixed(2):'不可考');
+    container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span><button onclick="deleteDcaStock('${tk}')" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這檔的全部紀錄">🗑️ 刪除整檔</button></div></div><div class="pbody">${histNote}<div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${avgDisplay}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares.toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
   });
   if(VISIBLE.length===0){
     const isFiltered=DCA_OWNER_FILTER!=='all'&&DCA_ENTRIES.length>0;
@@ -460,15 +472,23 @@ function toggleDcaForm(){
   const open=f.style.display==='none';
   f.style.display=open?'block':'none';
   arrow.textContent=open?'▲':'▼';
-  if(open){const today=new Date().toISOString().split('T')[0];document.getElementById('dca-date').value=today;}
-  else resetDcaFormUI();
+  if(!open) resetDcaFormUI();
 }
 
 let editingDcaId=null;
 function resetDcaFormUI(){
   editingDcaId=null;
-  const b=document.getElementById('dcaSingleSubmit');
-  if(b) b.textContent='確認新增';
+  document.getElementById('dca-create-form').style.display='block';
+  document.getElementById('dca-edit-form').style.display='none';
+  document.getElementById('dca-tk').value='';
+  document.getElementById('dca-nm').value='';
+  document.getElementById('dca-owner').value='';
+}
+function cancelDcaEdit(){
+  const f=document.getElementById('dcaForm');
+  f.style.display='none';
+  document.getElementById('dcaFormArrow').textContent='▼';
+  resetDcaFormUI();
 }
 function editDcaEntry(id){
   const e=DCA_ENTRIES.find(x=>x.id===id);
@@ -476,8 +496,9 @@ function editDcaEntry(id){
   editingDcaId=id;
   const f=document.getElementById('dcaForm');
   if(f.style.display==='none'){ f.style.display='block'; document.getElementById('dcaFormArrow').textContent='▲'; }
-  // Force single-record mode (editing one entry, not creating a plan)
-  setDcaMode('single', document.getElementById('mode-single'));
+  document.getElementById('dca-create-form').style.display='none';
+  document.getElementById('dca-edit-form').style.display='block';
+  document.getElementById('dca-edit-label').textContent='✏️ 編輯 '+e.date+' 的紀錄';
   document.getElementById('dca-tk').value=e.tk||'';
   document.getElementById('dca-nm').value=e.nm||'';
   document.getElementById('dca-date').value=e.date||'';
@@ -485,7 +506,6 @@ function editDcaEntry(id){
   document.getElementById('dca-price').value=e.price||'';
   document.getElementById('dca-shares').value=e.shares||'';
   const ownerEl=document.getElementById('dca-owner'); if(ownerEl) ownerEl.value=_ownerOf(e);
-  const b=document.getElementById('dcaSingleSubmit'); if(b) b.textContent='確認更新';
   f.scrollIntoView({behavior:'smooth',block:'center'});
 }
 function addDcaEntry(){
@@ -884,7 +904,7 @@ function obFinish(){
     const s=parseInt(inputs[2].value)||0, c=parseFloat(inputs[3].value)||0, b=parseFloat(inputs[4].value)||0;
     if(tk&&s&&c) H.push({tk,nm:nm||tk,p:c,c,s,b:b||0,sl:0});
   });
-  AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;
+  AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};nid=1;ntid=1;dcaNextId=1;
   saveData();
   document.getElementById('onboarding').style.display='none';
   renderAll();
@@ -893,7 +913,7 @@ function obFinish(){
 function obSkip(){
   TOTAL_ASSETS=600000;
   H=[{tk:'006208',nm:'富邦台50',p:118.5,c:105,s:500,b:110,sl:135}];
-  AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;
+  AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};nid=1;ntid=1;dcaNextId=1;
   saveData();
   document.getElementById('onboarding').style.display='none';
   renderAll();
@@ -936,7 +956,7 @@ function editHolding(i){
   saveData();renderAll();renderSettingsData();
 }
 function deleteHolding(i){if(!confirm(`確定刪除 ${H[i].tk} ${H[i].nm}？`))return;H.splice(i,1);saveData();renderAll();renderSettingsData();}
-function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;renderAll();renderSettingsData();showOnboarding();}
+function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};nid=1;ntid=1;dcaNextId=1;renderAll();renderSettingsData();showOnboarding();}
 function _bkpDB(){return new Promise((res,rej)=>{const r=indexedDB.open('invest_os',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
 async function _saveBkpHandle(h){const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'backup_dir');tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
 async function _loadBkpHandle(){try{const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const req=tx.objectStore('handles').get('backup_dir');req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}catch{return null;}}
@@ -1161,14 +1181,6 @@ function autoName(tk,targetId){
 }
 
 // ========== DCA PLAN ==========
-function setDcaMode(mode,btn){
-  document.getElementById('dca-plan-fields').style.display=mode==='plan'?'block':'none';
-  document.getElementById('dca-single-fields').style.display=mode==='single'?'block':'none';
-  document.getElementById('mode-plan').className=mode==='plan'?'btn btn-p':'btn';
-  document.getElementById('mode-single').className=mode==='single'?'btn btn-p':'btn';
-  if(mode==='plan')document.getElementById('mode-single').style.cssText='flex:1;padding:7px;font-size:13px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)';
-  else document.getElementById('mode-plan').style.cssText='flex:1;padding:7px;font-size:13px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)';
-}
 function getDcaPlanDates(startStr,endStr,dayOfMonth){
   const dates=[];
   const start=new Date(startStr);
@@ -1179,33 +1191,28 @@ function getDcaPlanDates(startStr,endStr,dayOfMonth){
   while(cur<=end&&dates.length<120){dates.push({date:`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`,past:cur<=now});cur=new Date(cur.getFullYear(),cur.getMonth()+1,dayOfMonth);}
   return dates;
 }
-function previewDcaPlan(){
-  const start=document.getElementById('dca-start').value;
-  const end=document.getElementById('dca-end').value;
-  const day=parseInt(document.getElementById('dca-day').value)||15;
-  const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
-  if(!start||!amt){document.getElementById('dca-preview').innerHTML='<div style="color:var(--red);font-family:var(--mono);font-size:13px">請填寫開始日期和金額</div>';return;}
-  const dates=getDcaPlanDates(start,end,day);
-  const past=dates.filter(d=>d.past).length;
-  const future=dates.filter(d=>!d.past).length;
-  const total=dates.length*amt;
-  document.getElementById('dca-preview').innerHTML=`<div style="background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.2);border-radius:6px;padding:12px;margin-bottom:8px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:8px;letter-spacing:1px">PREVIEW</div><div style="display:flex;gap:16px;flex-wrap:wrap"><div><div style="font-size:11px;color:var(--text-dim)">總期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--accent)">${dates.length} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">已過期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--amber)">${past} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">未來期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--text-secondary)">${future} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">計畫總投入</div><div style="font-family:var(--mono);font-size:18px;color:var(--text-primary)">$${total.toLocaleString()}</div></div></div><div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px">${dates.map(d=>`<span style="font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;background:${d.past?'rgba(0,200,150,0.15)':'rgba(255,255,255,0.05)'};color:${d.past?'var(--green)':'var(--text-dim)'};">${d.date.slice(0,7)}</span>`).join('')}</div></div>`;
-}
-function addDcaPlan(){
+function addDCA(){
   const tk=document.getElementById('dca-tk').value.trim();
   const nm=document.getElementById('dca-nm').value.trim()||STOCK_NAMES[tk]||tk;
-  const start=document.getElementById('dca-start').value;
-  const end=document.getElementById('dca-end').value;
+  const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
+  const startMonth=document.getElementById('dca-start').value; // YYYY-MM
   const day=parseInt(document.getElementById('dca-day').value)||15;
   const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
-  const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!start) return;
-  const dates=getDcaPlanDates(start,end,day);
-  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,owner,pending:!d.past||!amt});});
+  const totalShares=parseInt(document.getElementById('dca-total-shares').value)||0;
+  const avgCostInput=parseFloat(document.getElementById('dca-avg-cost').value)||0;
+  if(!tk||!startMonth) return;
+  if(totalShares||avgCostInput){
+    if(!DCA_META[tk]) DCA_META[tk]={};
+    if(totalShares) DCA_META[tk].totalShares=totalShares;
+    if(avgCostInput) DCA_META[tk].avgCost=avgCostInput;
+  }
+  const startStr=startMonth+'-01';
+  const dates=getDcaPlanDates(startStr,'',day);
+  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt:amt||null,price:null,shares:null,owner,pending:!d.past,historical:d.past});});
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';
-  document.getElementById('dca-preview').innerHTML='';
+  resetDcaFormUI();
   saveData(); renderDCA();
 }
 function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;if(!e.amt){return;}e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
@@ -1236,6 +1243,7 @@ async function doCloudSetup(){
     const merged=cloudToLocal_(data);
     TOTAL_ASSETS=merged.TOTAL_ASSETS;H=merged.H;AL=merged.AL;TRADES=merged.TRADES;DCA_ENTRIES=merged.DCA_ENTRIES;
     nid=merged.nid;ntid=merged.ntid;dcaNextId=merged.dcaNextId;
+    if(merged.DCA_META) DCA_META=merged.DCA_META;
     saveData();
     msgEl.style.color='var(--green)';msgEl.textContent='✓ 連接成功！';
     setCloudStatus('🟢 已連動 Google Sheet');
@@ -1321,7 +1329,8 @@ async function pullFromCloud(){
     TOTAL_ASSETS = cloud.TOTAL_ASSETS;
     H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES;
     nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
-    localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,nid,ntid,dcaNextId}));
+    if(cloud.DCA_META) DCA_META=cloud.DCA_META;
+    localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,DCA_META,nid,ntid,dcaNextId}));
     setCloudStatus('🟢 已從 Google Sheet 拉取');
     updateLastSync_();
     renderAll();
