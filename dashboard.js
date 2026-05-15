@@ -515,16 +515,26 @@ function addDcaEntry(){
   const date=document.getElementById('dca-date').value;
   let amt=parseFloat(document.getElementById('dca-amt').value)||0;
   let price=parseFloat(document.getElementById('dca-price').value)||0;
-  const shares=parseInt(document.getElementById('dca-shares').value)||(price>0?Math.floor(amt/price):0);
+  let shares=parseInt(document.getElementById('dca-shares').value)||0;
   if(!amt&&price&&shares) amt=price*shares;
   if(!price&&amt&&shares) price=amt/shares;
+  if(!shares&&price&&amt) shares=Math.floor(amt/price);
   const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!date||!shares||(!amt&&!price)) return;
+  if(!tk||!date) return;
   if(editingDcaId!==null){
     const e=DCA_ENTRIES.find(x=>x.id===editingDcaId);
-    if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,owner,pending:false}); }
+    if(e){
+      Object.assign(e,{
+        tk,nm:nm||tk,date,owner,
+        amt:amt||e.amt||null,
+        price:price||e.price||null,
+        shares:shares||e.shares||null,
+        pending:e.pending&&!price&&!shares,
+        historical:e.historical&&!price&&!shares
+      });
+    }
   } else {
-    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares,owner});
+    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt:amt||null,price:price||null,shares:shares||null,owner});
   }
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
