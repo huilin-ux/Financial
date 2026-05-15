@@ -358,10 +358,18 @@ function renderDCA(){
     : DCA_ENTRIES.filter(e=>_ownerOf(e)===DCA_OWNER_FILTER);
   const byTk={};
   VISIBLE.forEach(e=>{if(!byTk[e.tk])byTk[e.tk]={nm:e.nm,entries:[]};byTk[e.tk].entries.push(e);});
-  const confirmed=VISIBLE.filter(e=>e.price&&!e.pending);
-  const totalAmt=confirmed.reduce((s,e)=>s+e.amt,0);
   const uniqueTks=Object.keys(byTk);
   const isSingle=uniqueTks.length<=1;
+  // Compute per-ticker totalAmt: prefer DCA_META product (broker app data),
+  // fallback to sum of amt from non-pending entries.
+  const tkTotalAmt={};
+  uniqueTks.forEach(tk=>{
+    const meta=DCA_META[tk]||{};
+    const fromMeta=(meta.totalShares&&meta.avgCost)?meta.totalShares*meta.avgCost:0;
+    const fromEntries=byTk[tk].entries.filter(e=>!e.pending&&e.amt).reduce((s,e)=>s+e.amt,0);
+    tkTotalAmt[tk]=fromMeta||fromEntries;
+  });
+  const totalAmt=uniqueTks.reduce((s,tk)=>s+tkTotalAmt[tk],0);
   let mktVal=0,allPriced=uniqueTks.length>0;
   uniqueTks.forEach(tk=>{
     const meta=DCA_META[tk]||{};
@@ -375,10 +383,11 @@ function renderDCA(){
   const pnlCls=pnl===null?'am':pnl>=0?'up':'dn';
   const singleTk=isSingle?uniqueTks[0]:null;
   const singleMeta=singleTk?(DCA_META[singleTk]||{}):null;
+  const confirmed=VISIBLE.filter(e=>e.price&&!e.pending);
   const totalSharesCalc=confirmed.reduce((s,e)=>s+(e.shares||0),0);
   const displayShares=singleMeta?.totalShares||totalSharesCalc;
-  const avgCostCalc=totalSharesCalc>0?totalAmt/totalSharesCalc:0;
-  const displayAvgCost=singleMeta?.avgCost||avgCostCalc;
+  const avgCostFromEntries=totalSharesCalc>0?confirmed.reduce((s,e)=>s+e.amt,0)/totalSharesCalc:0;
+  const displayAvgCost=singleMeta?.avgCost||avgCostFromEntries;
   const singleCur=singleTk?(H.find(x=>x.tk===singleTk)||{}).p:null;
   const grid=document.getElementById('dcaSummaryGrid');
   if(grid){
@@ -401,10 +410,11 @@ function renderDCA(){
     const entries=[...data.entries].sort((a,b)=>new Date(a.date)-new Date(b.date));
     const confirmedEntries=entries.filter(e=>e.price&&!e.pending);
     const historicalEntries=entries.filter(e=>e.historical&&!e.price);
-    const tkAmt=confirmedEntries.reduce((s,e)=>s+e.amt,0);
+    const tkAmt=tkTotalAmt[tk];
     const tkSharesCalc=confirmedEntries.reduce((s,e)=>s+(e.shares||0),0);
     const tkShares=meta.totalShares||tkSharesCalc;
-    const tkAvgCalc=tkSharesCalc>0?tkAmt/tkSharesCalc:0;
+    const tkAmtFromConfirmed=confirmedEntries.reduce((s,e)=>s+e.amt,0);
+    const tkAvgCalc=tkSharesCalc>0?tkAmtFromConfirmed/tkSharesCalc:0;
     const tkAvg=meta.avgCost||tkAvgCalc;
     const tkH=H.find(x=>x.tk===tk);
     const tkCur=tkH?tkH.p:null;
