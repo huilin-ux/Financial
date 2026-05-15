@@ -210,6 +210,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 @keyframes lb{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skel{background:linear-gradient(90deg,var(--edge) 25%,rgba(26,37,53,0.8) 50%,var(--edge) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:3px;margin-bottom:9px;height:14px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+#hbody{display:flex;flex-direction:column;gap:0}
 .hcard{padding:16px;border-bottom:1px solid rgba(26,37,53,0.7);position:relative;overflow:hidden}
 .hcard:last-child{border-bottom:none}
 .hcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;position:relative;z-index:2}
@@ -293,6 +294,12 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   #tab-portfolio.section.active > #allocPanel{grid-area:alloc;margin-bottom:0}
   #tab-portfolio.section.active > #holdingsPanel{grid-area:holdings;margin-bottom:0}
   #tab-portfolio.section.active > #trigPanel{grid-area:trig;margin-bottom:0}
+  /* 持倉 tab: 2-col holdings cards */
+  #hbody{display:grid;grid-template-columns:1fr 1fr}
+  #hbody > .hcard{border-right:1px solid rgba(26,37,53,0.7)}
+  #hbody > .hcard:nth-child(2n){border-right:none}
+  #hbody > .hcard:nth-last-child(-n+2):nth-child(odd){border-bottom:none}
+  #hbody > .hcard:last-child:nth-child(odd){grid-column:1 / -1;border-right:none}
   /* 向錢進 tab: 2-col cards */
   #alist{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   #alist > .al-card{margin-bottom:0}
@@ -353,7 +360,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   </div>
   <div class="panel" id="holdingsPanel">
     <div class="phead"><div class="plabel">持倉明細</div><button class="hint-btn" onclick="showHint('holdings', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">4 POSITIONS</span></div>
-    <div id="hbody" style="display:flex;flex-direction:column;gap:0"></div>
+    <div id="hbody"></div>
   </div>
   <div class="panel" id="trigPanel">
     <div class="phead"><div class="plabel">今日觸發提醒</div><button class="hint-btn" onclick="showHint('alerts-today', event)" title="說明">?</button></div>
@@ -400,7 +407,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">開始日期</div><input id="dca-start" class="finput" type="date"></div>
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">結束日期（可留空）</div><input id="dca-end" class="finput" type="date"></div>
           <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每月扣款日</div><input id="dca-day" class="finput" type="number" min="1" max="28" placeholder="15"></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每次金額 $</div><input id="dca-plan-amt" class="finput" type="number" placeholder="10000"></div>
+          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每次金額 $（忘了可留空）</div><input id="dca-plan-amt" class="finput" type="number" placeholder="選填 — 之後可逐筆補"></div>
         </div>
         <div id="dca-preview" style="margin-bottom:10px"></div>
         <button onclick="previewDcaPlan()" class="btn" style="width:100%;margin-bottom:8px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--accent);font-family:var(--mono)">預覽扣款時程</button>
@@ -428,6 +435,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <button class="al-filter" onclick="filterAL('holding',this)">💼 持有中</button>
     <button class="al-filter" onclick="filterAL('sold_profit',this)">✅ 獲利出場</button>
     <button class="al-filter" onclick="filterAL('sold_loss',this)">❌ 停損出場</button>
+    <button id="tradeStatsToggle" class="al-filter" onclick="toggleTradeStats(this)">📊 已結算</button>
   </div>
   <div class="g4" style="margin-bottom:12px" id="alStatsGrid"></div>
   <div id="al-summary" style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap"></div>
@@ -455,12 +463,14 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
     <div style="display:flex;gap:8px"><button id="addpanelSubmit" class="btn btn-p" onclick="addAlert()">確認新增</button><button class="btn btn-g" onclick="toggleForm()">取消</button></div>
   </div>
   <div id="alist"></div>
+  <div id="tradeStatsSection" style="display:none">
   <div class="g2" style="margin:18px 0 12px">
     <div class="stat" data-g="W"><div class="slbl">交易勝率</div><div class="sval up" id="totalWR">—</div><div class="sdelta" style="color:var(--text-dim)">已結算交易</div></div>
     <div class="stat" data-g="$"><div class="slbl">已實現損益</div><div class="sval" id="totalRPnl">—</div><div class="sdelta" style="color:var(--text-dim)">歷史累計</div></div>
   </div>
   <div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">來源勝率</div><button class="hint-btn" onclick="showHint('winrate', event)" title="說明">?</button><span style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">SOURCE WIN RATE</span></div><div class="pbody" id="wrBody"></div></div>
   <div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">交易紀錄（已結算）</div><button class="hint-btn" onclick="showHint('trades', event)" title="說明">?</button><button class="btn btn-p" style="font-size:12px;padding:7px 14px" onclick="openTradeModal()">+ 新增外部交易</button></div><div style="padding:0 16px" id="tlogBody"></div></div>
+  </div>
   <div class="ibox" style="margin-top:12px"><div class="ilbl">向錢進使用原則</div><div class="ibody">設定好<strong style="color:var(--text-primary)">買進價＋停利＋停損</strong>，到了無腦執行，克服人性弱點。停損不是失敗，是保護本金的紀律。賣出後系統會自動把這筆收進上面「交易紀錄」算勝率。</div></div>
 </div>
 <div id="tab-report" class="section">
@@ -523,6 +533,7 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
       <div style="margin-bottom:16px"><div class="flbl" style="margin-bottom:6px">總資產（含現金）NT$</div><div style="display:flex;gap:8px"><input class="finput" id="cfg-total" type="number" placeholder="600000" style="flex:1"><button onclick="saveTotalAssets()" class="btn btn-p" style="padding:8px 16px;white-space:nowrap">更新</button></div></div>
       <div style="margin-bottom:16px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div class="flbl">持倉</div><button onclick="openAddHoldingModal()" style="font-family:var(--mono);font-size:12px;padding:4px 12px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--green);border-radius:4px;cursor:pointer">+ 新增</button></div><div id="cfg-holdings-list"></div></div>
       <div style="height:1px;background:var(--border);margin:16px 0"></div>
+      <div style="margin-bottom:16px"><div class="flbl" style="margin-bottom:6px">備份資料夾（可設定為 Obsidian Vault）</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button onclick="pickBackupFolder()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(0,200,150,0.1);border:1px solid rgba(0,200,150,0.3);color:var(--green);border-radius:6px;cursor:pointer">📁 選定資料夾</button><span id="bkpFolderStatus" style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">(尚未選定 — 下載到瀏覽器預設位置)</span></div><div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:6px">選定後，「匯出備份」會直接寫到該資料夾，不再跳出下載視窗</div></div>
       <div style="margin-bottom:8px"><div class="flbl" style="color:var(--red);margin-bottom:10px">危險操作</div><div style="display:flex;gap:8px;flex-wrap:wrap"><button onclick="clearAllData()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,69,96,0.1);border:1px solid rgba(255,69,96,0.3);color:var(--red);border-radius:6px;cursor:pointer">🗑 清除所有資料</button><button onclick="showOnboarding()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;cursor:pointer">↺ 重新設定引導</button><button onclick="exportData()" style="font-family:var(--mono);font-size:12px;padding:8px 14px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;cursor:pointer">↓ 匯出備份</button></div></div>
     </div>
   </div>

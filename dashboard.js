@@ -416,7 +416,10 @@ function renderDCA(){
     const entryRows=entries.map(e=>{
       const isPending=e.pending||!e.price;
       const ownerBadge=showOwners?`<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:8px;margin-left:6px">👤 ${_ownerOf(e)}</span>`:'';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
+      const noAmt=isPending&&!e.amt;
+      const priceCell=isPending?(noAmt?`<span style="font-size:12px;color:var(--text-dim)">點 ✏️ 補填</span>`:`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`):'$'+e.price;
+      const amtDisplay=e.amt?'$'+e.amt.toLocaleString():'—';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${priceCell}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${amtDisplay}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
     }).join('');
     container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span><button onclick="deleteDcaStock('${tk}')" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這檔的全部紀錄">🗑️ 刪除整檔</button></div></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${tkAvg.toFixed(2)}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
   });
@@ -596,7 +599,8 @@ function addTrade(){
 
 // ========== ALERTS (向錢進) ==========
 let alFilter='all';
-function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter:not(#tradeStatsToggle)').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function toggleTradeStats(btn){const sec=document.getElementById('tradeStatsSection');const open=sec.style.display!=='none';sec.style.display=open?'none':'block';btn.classList.toggle('active',!open);}
 const AL_STATUS={watching:{label:'👀 追蹤中',cls:'watching'},holding:{label:'💼 持有中',cls:'holding'},sold_profit:{label:'✅ 獲利出場',cls:'sold_profit'},sold_loss:{label:'❌ 停損出場',cls:'sold_loss'}};
 
 function renderAL(){
@@ -898,6 +902,7 @@ function obSkip(){
 // ========== SETTINGS DATA ==========
 function renderSettingsData(){
   renderSettingsSrcChips();
+  renderBackupFolderStatus();
   const cfgTotal=document.getElementById('cfg-total');
   if(cfgTotal) cfgTotal.value=TOTAL_ASSETS||'';
   const cloudInput=document.getElementById('cloud-api-url');
@@ -932,13 +937,35 @@ function editHolding(i){
 }
 function deleteHolding(i){if(!confirm(`確定刪除 ${H[i].tk} ${H[i].nm}？`))return;H.splice(i,1);saveData();renderAll();renderSettingsData();}
 function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;renderAll();renderSettingsData();showOnboarding();}
-function exportData(){
+function _bkpDB(){return new Promise((res,rej)=>{const r=indexedDB.open('invest_os',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function _saveBkpHandle(h){const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'backup_dir');tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function _loadBkpHandle(){try{const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const req=tx.objectStore('handles').get('backup_dir');req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}catch{return null;}}
+async function _verifyBkpPerm(h){const o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;return await h.requestPermission(o)==='granted';}
+async function pickBackupFolder(){
+  if(!window.showDirectoryPicker){alert('你的瀏覽器不支援此功能，請用 Chrome / Edge / Safari 15.2+');return;}
+  try{const h=await window.showDirectoryPicker({mode:'readwrite'});await _saveBkpHandle(h);renderBackupFolderStatus();alert('已綁定備份資料夾：'+h.name);}
+  catch(e){if(e.name!=='AbortError')alert('選擇失敗：'+e.message);}
+}
+async function renderBackupFolderStatus(){
+  const el=document.getElementById('bkpFolderStatus');if(!el)return;
+  const h=await _loadBkpHandle();
+  if(h){el.textContent='📁 '+h.name+' （已綁定）';el.style.color='var(--green)';}
+  else{el.textContent='(尚未選定 — 下載到瀏覽器預設位置)';el.style.color='var(--text-dim)';}
+}
+async function exportData(){
   const data=JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES},null,2);
+  const filename='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
+  try{
+    const h=await _loadBkpHandle();
+    if(h && await _verifyBkpPerm(h)){
+      const fh=await h.getFileHandle(filename,{create:true});
+      const w=await fh.createWritable();await w.write(data);await w.close();
+      alert('✓ 已存到 '+h.name+'/'+filename);
+      return;
+    }
+  }catch(e){console.warn('Folder save failed, falling back to download:',e);}
   const blob=new Blob([data],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
-  a.click();
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
 // ========== DCA ACCORDION ==========
@@ -1172,16 +1199,16 @@ function addDcaPlan(){
   const day=parseInt(document.getElementById('dca-day').value)||15;
   const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
   const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!start||!amt) return;
+  if(!tk||!start) return;
   const dates=getDcaPlanDates(start,end,day);
-  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,owner,pending:!d.past});});
+  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,owner,pending:!d.past||!amt});});
   DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';
   document.getElementById('dca-preview').innerHTML='';
   saveData(); renderDCA();
 }
-function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
+function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;if(!e.amt){return;}e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
 
 // ========== INIT ==========
 function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}

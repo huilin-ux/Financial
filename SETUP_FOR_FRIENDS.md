@@ -407,11 +407,22 @@ LINE Messaging API 免費版每月 200 則訊息。
 3. Apps Script 跑 `testAll` 看執行記錄哪一步失敗
 
 ### Q10：資料安全嗎？
-- Google Sheet 預設只有你看得到
-- Apps Script Web App URL 雖然公開，但需要密碼才能讀；預設是 `meow-cat-financial-2026`，想換自己的密碼：
-  1. Sheet「設定」分頁加一列：`api_key`｜`你自己的字串`
-  2. 開 Dashboard → 設定頁 → 重新「儲存並測試」，或在設定畫面輸入你的新密碼
-- LINE token / Gemini key 只存在 Sheet「設定」分頁，**完全不會出現在 GitHub 公開程式碼**
+
+**資料儲存位置**
+- Google Sheet **只有你看得到**（除非你主動分享）
+- LINE token / Gemini key 只存在 Sheet「設定」分頁，**不會出現在 GitHub 公開程式碼**
+
+**Apps Script Web App URL = 你的密鑰**
+部署時設成「誰可以存取：任何人」是為了讓 dashboard 從瀏覽器直接讀寫，這代表：
+- 任何拿到你 Web App URL 的人都可以讀寫你的資料
+- 但每個人的 URL 是**獨一無二的長字串**（像 `AKfycby...` 那一長串），等於密碼
+- **不要把這條 URL 貼到公開地方**（公開 chat、截圖、commit 到公開 repo）
+- 萬一 URL 不小心外流：Apps Script → 部署 → **管理部署** → 編輯版本 → **新版本** → 部署 → 取得新 URL，**舊 URL 自動失效**
+
+**強烈建議：定期備份**
+- Dashboard → 設定 tab → **「📁 選定備份資料夾」**綁定本機資料夾（例如 iCloud Drive 或 Obsidian Vault）
+- 之後點「↓ 匯出備份」會直接寫一份 JSON 進去，幾秒鐘的事
+- 養成每週備份一次的習慣，萬一資料毀損可以還原
 
 ---
 
