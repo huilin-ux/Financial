@@ -654,9 +654,14 @@ function fetchYahooName_(code) {
 }
 
 function fetchYahooPrice_(code) {
+  // 上市股票用 .TW，上櫃 / 興櫃用 .TWO；先試 .TW，404 就 fallback .TWO
+  return fetchYahooPriceFor_(code + '.TW') ?? fetchYahooPriceFor_(code + '.TWO');
+}
+
+function fetchYahooPriceFor_(symbol) {
   try {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
-      + encodeURIComponent(code) + '.TW?interval=1d&range=5d';
+      + encodeURIComponent(symbol) + '?interval=1d&range=5d';
     const res = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
       headers: { 'User-Agent': 'Mozilla/5.0' }
