@@ -210,8 +210,8 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
 @keyframes lb{0%{background-position:-200% 0}100%{background-position:200% 0}}
 .skel{background:linear-gradient(90deg,var(--edge) 25%,rgba(26,37,53,0.8) 50%,var(--edge) 75%);background-size:200% 100%;animation:sk 1.4s ease infinite;border-radius:3px;margin-bottom:9px;height:14px}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
-#hbody{display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,0.07)}
-.hcard{padding:16px;background:var(--panel);position:relative;overflow:hidden}
+#hbody{display:flex;flex-direction:column;gap:4px;padding:4px;background:rgba(255,255,255,0.07)}
+.hcard{padding:16px;background:var(--panel);border-radius:8px;position:relative;overflow:hidden}
 .hcard-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;position:relative;z-index:2}
 .hcard-tk{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:1px}
 .hcard-nm{font-size:14px;color:var(--text-dim);margin-top:2px}
@@ -389,63 +389,26 @@ body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradi
   <div class="panel" style="margin-bottom:10px">
     <div class="phead" style="cursor:pointer" onclick="toggleDcaForm()"><div class="plabel">+ 新增定期定額計畫</div><span id="dcaFormArrow" style="font-family:var(--mono);font-size:14px;color:var(--text-dim)">▼</span></div>
     <div id="dcaForm" style="display:none" class="pbody">
-      <!-- Shared: ticker + owner (used by both create and edit modes) -->
+      <div id="dca-edit-label" style="display:none;font-family:var(--mono);font-size:12px;color:var(--amber);margin-bottom:10px"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);line-height:1.6;margin-bottom:12px;padding:8px 10px;background:rgba(255,184,50,0.06);border:1px solid rgba(255,184,50,0.2);border-radius:6px">💡 打開券商 App → 定期定額庫存，照著畫面上的數字填即可。以後偶爾更新「總持股」和「平均成本」就好。</div>
       <div class="g2" style="gap:10px;margin-bottom:10px">
         <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票代號</div><input id="dca-tk" class="finput" placeholder="006208" oninput="autoName(this.value,'dca-nm')"></div>
         <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">股票名稱</div><input id="dca-nm" class="finput" placeholder="自動帶入"></div>
       </div>
-      <div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">帳戶（誰的）</div><input id="dca-owner" class="finput" placeholder="自己（小孩、媽媽…等都可自訂）" list="dcaOwnerList"><datalist id="dcaOwnerList"></datalist></div>
-      <!-- Create mode (default) -->
-      <div id="dca-create-form">
-        <div class="g2" style="gap:10px;margin-bottom:4px">
-          <div>
-            <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">開始年月</div>
-            <div style="display:flex;gap:6px">
-              <select id="dca-start-year" class="fsel" style="flex:1;background:var(--panel);border:1px solid var(--edge);border-radius:4px;padding:10px 13px;color:var(--text-primary);font-family:var(--mono);font-size:16px;outline:none"></select>
-              <select id="dca-start-month" class="fsel" style="width:80px;background:var(--panel);border:1px solid var(--edge);border-radius:4px;padding:10px 8px;color:var(--text-primary);font-family:var(--mono);font-size:16px;outline:none">
-                <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
-                <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
-                <option value="07">7月</option><option value="08">8月</option><option value="09">9月</option>
-                <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
-              </select>
-            </div>
-            <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:4px">不記得就填大概的年月，歷史紀錄只是參考用</div>
-          </div>
-          <div>
-            <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每月扣款日</div>
-            <input id="dca-day" class="finput" type="number" min="1" max="28" placeholder="15">
-          </div>
-        </div>
-        <div style="margin-bottom:14px;margin-top:10px">
-          <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每次金額 $（選填）</div>
-          <input id="dca-plan-amt" class="finput" type="number" placeholder="選填 — 不記得可空白">
-        </div>
-        <div style="border-top:1px solid var(--border);margin-bottom:14px"></div>
-        <div style="margin-bottom:4px">
-          <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">現在總持股</div>
-          <input id="dca-total-shares" class="finput" type="number" placeholder="從券商 App 查">
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:4px">打開券商 App → 庫存 → 持有股數</div>
-        </div>
-        <div style="margin-bottom:14px;margin-top:10px">
-          <div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">目前平均成本（選填）</div>
-          <input id="dca-avg-cost" class="finput" type="number" placeholder="券商 App 有顯示的話填進來">
-          <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:4px">選填。不填也不影響功能</div>
-        </div>
-        <button onclick="addDCA()" class="btn btn-p" style="width:100%">確認新增</button>
+      <div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">帳戶（誰的，選填）</div><input id="dca-owner" class="finput" placeholder="自己（小孩、媽媽…等都可自訂）" list="dcaOwnerList"><datalist id="dcaOwnerList"></datalist></div>
+      <div class="g2" style="gap:10px;margin-bottom:14px">
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每月扣款 $</div><input id="dca-amt" class="finput" type="number" placeholder="3000"></div>
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">每月扣款日</div><input id="dca-day" class="finput" type="number" min="1" max="28" placeholder="15"></div>
       </div>
-      <!-- Edit mode (hidden, shown when editing a single entry) -->
-      <div id="dca-edit-form" style="display:none">
-        <div id="dca-edit-label" style="font-family:var(--mono);font-size:12px;color:var(--amber);margin-bottom:10px"></div>
-        <div class="g2" style="gap:10px;margin-bottom:10px">
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款日期</div><input id="dca-date" class="finput" type="date"></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">買入股數</div><input id="dca-shares" class="finput" type="number" placeholder=""></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">扣款金額 $（選填）</div><input id="dca-amt" class="finput" type="number" placeholder=""></div>
-          <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">成交價格（選填）</div><input id="dca-price" class="finput" type="number" placeholder=""></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button id="dcaSingleSubmit" onclick="addDcaEntry()" class="btn btn-p" style="flex:1">確認更新</button>
-          <button onclick="cancelDcaEdit()" class="btn" style="padding:0 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)">取消</button>
-        </div>
+      <div style="border-top:1px solid var(--border);margin-bottom:14px"></div>
+      <div class="g2" style="gap:10px;margin-bottom:6px">
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">目前總持股</div><input id="dca-shares" class="finput" type="number" placeholder="從券商 App 抄"></div>
+        <div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px">目前平均成本</div><input id="dca-cost" class="finput" type="number" placeholder="券商 App 抄"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-bottom:14px">填了這兩格就能自動算出損益。不填也能用，只是看不到損益。</div>
+      <div style="display:flex;gap:8px">
+        <button id="dcaSubmit" onclick="addDCA()" class="btn btn-p" style="flex:1">確認新增</button>
+        <button id="dcaCancel" onclick="cancelDcaEdit()" class="btn" style="display:none;padding:0 16px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)">取消</button>
       </div>
     </div>
   </div>
