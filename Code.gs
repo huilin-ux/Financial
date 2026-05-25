@@ -10,7 +10,7 @@
  */
 
 // ========== 設定區 ==========
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-pro';
 
 // Dashboard 跟 Web App 之間的通關密語。可以在 Sheet「設定」分頁加一列
 // api_key | <你自己的字串> 來覆寫；沒填就用下面的預設。
@@ -736,13 +736,17 @@ function askGemini(apiKey, prompt, grounded) {
   try {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
       + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const isPro = GEMINI_MODEL.indexOf('pro') !== -1;
+    const generationConfig = {
+      // pro 思考會吃掉輸出額度，grounded 報告給多一點空間
+      maxOutputTokens: grounded ? (isPro ? 8000 : 4000) : 800,
+      temperature: 0.8
+    };
+    // flash 可關閉思考省時省額度；pro 不支援關閉，交給預設
+    if (!isPro) generationConfig.thinkingConfig = { thinkingBudget: 0 };
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: grounded ? 4000 : 800,
-        temperature: 0.8,
-        thinkingConfig: { thinkingBudget: 0 }
-      }
+      generationConfig: generationConfig
     };
     if (grounded) body.tools = [{ google_search: {} }];
     const res = UrlFetchApp.fetch(url, {
@@ -1106,23 +1110,46 @@ function sendWeeklyReport() {
     const totalPct = totalCost > 0 ? totalPL / totalCost : 0;
 
     const prompt =
-`${owner} 本週收盤了，請寫一封週報。
-【本週持倉狀況】
+`你是 ${owner} 的投資助理阿喵共。本週台股已收盤，請上網搜尋本週真實市場資料，寫一封有料的週報。
+
+【${owner} 本週持倉狀況】
 總成本：${totalCost.toFixed(0)}
 總市值：${totalValue.toFixed(0)}
 總未實現損益：${totalPL.toFixed(0)}（${fmtPct_(totalPct)}）
-明細：
+個股明細：
 ${lines.join('\n') || '（無持倉）'}
 
-請用繁體中文寫一段 120-180 字的週報，要求：
-- 開頭祝他週末快樂
-- 回顧本週整體表現（不論賺賠都要正向）
-- 鼓勵繼續按計畫執行、不要被一週的波動影響
-- 提醒週末好好休息、陪家人朋友
-- 適當 emoji，溫暖可愛`;
+請用繁體中文寫 350-500 字的週報，務必先用 Google 搜尋本週（最近 5 個交易日）的真實資料，按以下結構：
 
-    const msg = askGemini(cfg.gemini_key, prompt) || '本週辛苦了，週末愉快！';
+📈 本週大盤回顧
+- 台股加權指數本週漲跌（用真實數字）、成交量、外資買賣超方向
+- 美股三大指數、費半本週表現，以及對台股的影響
+
+💼 你的持倉點評
+- 針對上面個股明細，點評本週表現較好/較弱的標的，簡短說明可能原因（產業消息、財報、大盤連動）
+
+👀 下週關注重點
+- 下週值得留意的事件：重要財報、除權息、央行/總經數據、國際變數
+
+💪 紀律提醒 + 收尾
+- 一句鼓勵 ${owner} 按計畫執行、不被單週波動影響
+- 提醒週末好好休息
+
+要求：數據要真實（搜尋後再寫，不要編造），語氣溫暖專業，適當用 emoji。`;
+
+    const msg = askGemini(cfg.gemini_key, prompt, true) || '本週辛苦了，週末愉快！';
     sendLine(cfg.line_token, '📊 投資阿喵共・週五週報\n' + msg, cfg.line_user_id);
+
+    // 第二則：來源（取 Gemini grounding 真實 URL）
+    if (LAST_GROUNDING && LAST_GROUNDING.sources && LAST_GROUNDING.sources.length) {
+      const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      const sourceLines = LAST_GROUNDING.sources.slice(0, 5).map(s => {
+        const label = (s.title || '來源').slice(0, 20);
+        return `・${label}：${shortenUrl(s.uri)}`;
+      }).join('\n');
+      Utilities.sleep(1000);
+      sendLine(cfg.line_token, `📰 本週資料來源\n${sourceLines}\n⏱ ${now}`, cfg.line_user_id);
+    }
   } catch (err) {
     Logger.log('sendWeeklyReport 失敗：' + err.message);
   }
