@@ -880,15 +880,22 @@ function sendMorningReport() {
     const watchlist = getWatchlist();
     const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy年M月d日 EEEE');
 
-    // 算持倉損益
+    // 算持倉損益（每檔台幣盈虧）
     let totalPnl = 0;
+    let totalCost = 0;
+    let totalValue = 0;
     const holdingLines = holdings.map(h => {
       const price = getPrice(h.stock_tk) || h.cost;
-      const pnl = (price - h.cost) * h.shares;
+      const cost = h.cost * h.shares;
+      const value = price * h.shares;
+      const pnl = value - cost;
       const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
       totalPnl += pnl;
-      return `${h.stock_nm}(${h.stock_tk}) 現價$${price} 損益${pnl>=0?'+':''}${Math.round(pnl)}(${pnl>=0?'+':''}${pct}%)`;
+      totalCost += cost;
+      totalValue += value;
+      return `${h.stock_nm}(${h.stock_tk}) 持股${h.shares} 成本$${h.cost} 現價$${price} 市值$${Math.round(value)} 盈虧${pnl>=0?'+':''}${Math.round(pnl)}元(${pnl>=0?'+':''}${pct}%)`;
     }).join('\n') || '（無持倉）';
+    const totalPct = totalCost > 0 ? (totalPnl / totalCost * 100).toFixed(1) : '0';
 
     // 算向錢進距離
     const watchLines = watchlist.map(w => {
@@ -917,15 +924,15 @@ function sendMorningReport() {
 以上來源的數據最為權威準確，請優先引用這些網站的實際報導或數據頁面 URL。
 不要引用：比價網站(biggo等)、部落格、社群媒體、論壇。
 
-【持倉資料】
+【持倉資料】（金額單位皆為台幣 NT$）
 ${holdingLines}
+
+【持倉合計】總成本$${Math.round(totalCost)} 總市值$${Math.round(totalValue)} 總未實現損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元(${totalPnl>=0?'+':''}${totalPct}%)
 
 【向錢進清單】
 ${watchLines}
 
-【總未實現損益】${totalPnl>=0?'+':''}${Math.round(totalPnl)} 元
-
-輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 280 字）：
+輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 500 字）：
 
 ☀️ 投資阿喵共・今日早報
 🌅 早安 ${owner}！
@@ -936,8 +943,9 @@ ${watchLines}
 ・台幣匯率：（填入數字）（升/貶影響一句話）
 ・外資：（填入數字）（市場情緒一句話）
 
-【你的持倉今天】
-（每支一行，格式：・名稱(代號) 現價$x 損益+/-$x(+/-x%) → 今天影響 👍/⚠️）
+【你的持倉今天】（每檔務必標出台幣盈虧金額）
+（每支一行，格式：・名稱(代號) 現價$x 盈虧+/-x元(+/-x%) → 今天影響一句話 👍/⚠️）
+（最後一行加總：📊 總盈虧 +/-x元(+/-x%)）
 
 【向錢進狀態】
 （每支一行，格式：・名稱(代號) 現價$x 買入$x（距x%）🟢/🟡/🔴 一句話）
