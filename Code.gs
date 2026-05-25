@@ -434,9 +434,11 @@ function getDCA() {
     const sh = getSheet_().getSheetByName('定期定額');
     if (!sh) throw new Error('找不到「定期定額」工作表');
     const data = sh.getDataRange().getValues();
-    // owner is an optional column (6th); falls back to '自己' on legacy sheets
+    // owner / total_shares / avg_cost are optional columns; fall back on legacy sheets
     const header = data[0] || [];
     const ownerIdx = header.findIndex(h => String(h).trim() === 'owner');
+    const sharesIdx = header.findIndex(h => String(h).trim() === 'total_shares');
+    const costIdx = header.findIndex(h => String(h).trim() === 'avg_cost');
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const [tk, nm, day, amount, active] = data[i];
@@ -448,6 +450,8 @@ function getDCA() {
         deduct_day: Number(day) || 0,
         amount: Number(amount) || 0,
         owner: ownerIdx >= 0 ? String(data[i][ownerIdx] || '自己').trim() : '自己',
+        total_shares: sharesIdx >= 0 ? Number(data[i][sharesIdx]) || 0 : 0,
+        avg_cost: costIdx >= 0 ? Number(data[i][costIdx]) || 0 : 0,
         active: true
       });
     }
@@ -571,10 +575,11 @@ function writeDCA_(rows) {
   const ss = getSheet_();
   const sh = ss.getSheetByName('定期定額') || ss.insertSheet('定期定額');
   sh.clear();
-  sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active', 'owner']);
+  sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active', 'owner', 'total_shares', 'avg_cost']);
   rows.forEach(r => sh.appendRow([
     r.stock_tk || '', r.stock_nm || '', r.deduct_day || 0, r.amount || 0,
-    r.active === false ? 'FALSE' : 'TRUE', r.owner || '自己'
+    r.active === false ? 'FALSE' : 'TRUE', r.owner || '自己',
+    r.total_shares || 0, r.avg_cost || 0
   ]));
 }
 
