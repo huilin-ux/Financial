@@ -53,7 +53,7 @@ async function saveToCloud() {
       holdings: H.map(h => ({stock_tk:h.tk,stock_nm:h.nm,shares:h.s,cost:h.c,buy_alert:h.b,sell_alert:h.sl})),
       watchlist: AL.map(a => ({stock_tk:a.tk,stock_nm:a.nm,buy_price:a.b,take_profit:a.tp,stop_loss:a.stop,plan_shares:a.shares||0,source:a.src,status:a.status,exit_price:a.exit_price||0,exit_date:a.exit_date||''})),
       watchlist_deleted: getDeletedWatchKeys_(),
-      dca: DCA_ENTRIES.map(d => ({stock_tk:d.tk,stock_nm:d.nm,deduct_day:new Date(d.date).getDate(),amount:d.amt,active:!d.pending,owner:d.owner||'自己'})),
+      dca: DCA_PLANS.map(p => ({stock_tk:p.tk,stock_nm:p.nm,deduct_day:p.day,amount:p.amount,active:true,owner:p.owner||'自己',total_shares:p.totalShares||0,avg_cost:p.avgCost||0})),
       trades: TRADES.map(t => ({date:t.date,type:t.type,stock_tk:t.tk,stock_nm:t.nm,shares:t.shares,price:t.price,source:t.src,pnl:t.pnl})),
       config: { total_assets: TOTAL_ASSETS }
     };
@@ -83,15 +83,15 @@ function cloudToLocal_(data) {
   const h = (data.holdings||[]).map(r => ({tk:r.stock_tk,nm:r.stock_nm,p:Number(r.price)||r.cost,c:r.cost,s:r.shares,b:r.buy_alert,sl:r.sell_alert}));
   const al = (data.watchlist||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,b:r.buy_price,tp:r.take_profit,stop:r.stop_loss,shares:Number(r.plan_shares)||0,src:r.source,note:'',status:r.status,exit_price:Number(r.exit_price)||0,exit_date:r.exit_date||'',p:Number(r.price)||(r.buy_price+(r.take_profit-r.buy_price)*0.3)}));
   const tr = (data.trades||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,type:r.type,price:r.price,shares:r.shares,date:r.date,src:r.source,pnl:r.pnl}));
-  const dca = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,date:'',amt:r.amount,price:null,shares:null,owner:r.owner||'自己',pending:!r.active}));
+  const dcaPlans = (data.dca||[]).map((r,i) => ({id:i+1,tk:r.stock_tk,nm:r.stock_nm,owner:r.owner||'自己',amount:Number(r.amount)||0,day:Number(r.deduct_day)||15,totalShares:Number(r.total_shares)||0,avgCost:Number(r.avg_cost)||0}));
   const cfg = data.config || {};
   GEMINI_KEY = String(cfg.gemini_key || '').replace(/\s+/g, '');
   OWNER_NAME = String(cfg.owner_name || '朋友').trim();
   LAST_MORNING_REPORT = data.morningReport || null;
   return {
     TOTAL_ASSETS: Number(cfg.total_assets) || 0,
-    H: h, AL: al, TRADES: tr, DCA_ENTRIES: dca,
-    nid: al.length+1, ntid: tr.length+1, dcaNextId: dca.length+1
+    H: h, AL: al, TRADES: tr, DCA_ENTRIES: [], DCA_PLANS: dcaPlans,
+    nid: al.length+1, ntid: tr.length+1, dcaNextId: 1, dcaPlanNextId: dcaPlans.length+1
   };
 }
 
@@ -109,7 +109,7 @@ function loadData() {
 }
 function saveData() {
   localStorage.setItem('invest_os_data', JSON.stringify({
-    TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId
+    TOTAL_ASSETS, H, AL, TRADES, DCA_ENTRIES, nid, ntid, dcaNextId, DCA_META, DCA_PLANS, dcaPlanNextId
   }));
   if (getCloudUrl()) {
     setCloudStatus('🔄 同步中…');
@@ -136,6 +136,36 @@ let TRADES       = saved ? saved.TRADES       : [];
 let ntid         = saved ? saved.ntid         : 1;
 let DCA_ENTRIES  = saved ? saved.DCA_ENTRIES  : [];
 let dcaNextId    = saved ? saved.dcaNextId    : 1;
+let DCA_META     = saved ? (saved.DCA_META||{}) : {};
+// Snapshot model: one plan per (ticker+owner). {id,tk,nm,owner,amount,day,totalShares,avgCost}
+let DCA_PLANS    = saved ? (saved.DCA_PLANS||[]) : [];
+let dcaPlanNextId= saved ? (saved.dcaPlanNextId||1) : 1;
+migrateDcaToPlans();
+
+// One-time migration from the old per-month entry model to snapshot plans.
+function migrateDcaToPlans(){
+  if(DCA_PLANS.length) return;
+  if(!DCA_ENTRIES||!DCA_ENTRIES.length) return;
+  const groups={};
+  DCA_ENTRIES.forEach(e=>{
+    const owner=(e.owner||'自己').trim()||'自己';
+    const key=e.tk+'|'+owner;
+    if(!groups[key]) groups[key]={tk:e.tk,nm:e.nm||e.tk,owner,amts:{},days:{},shares:0,cost:0};
+    const g=groups[key];
+    if(e.amt) g.amts[e.amt]=(g.amts[e.amt]||0)+1;
+    if(e.date){const d=new Date(e.date).getDate(); if(d) g.days[d]=(g.days[d]||0)+1;}
+    if(e.shares&&e.price){g.shares+=e.shares; g.cost+=e.shares*e.price;}
+  });
+  const mode=o=>{let best=null,n=-1;for(const k in o){if(o[k]>n){n=o[k];best=k;}}return best;};
+  Object.values(groups).forEach(g=>{
+    const meta=DCA_META[g.tk]||{};
+    const amount=Number(mode(g.amts))||0;
+    const day=Number(mode(g.days))||15;
+    const totalShares=meta.totalShares||g.shares||0;
+    const avgCost=meta.avgCost||(g.shares>0?g.cost/g.shares:0);
+    DCA_PLANS.push({id:dcaPlanNextId++,tk:g.tk,nm:g.nm,owner:g.owner,amount,day,totalShares,avgCost:Math.round(avgCost*100)/100});
+  });
+}
 
 
 // ========== SUMMARY STATS ==========
@@ -163,13 +193,11 @@ function getUnifiedHoldings(){
     map[a.tk].sources.add('向錢進');
     if(!map[a.tk].p&&a.p) map[a.tk].p=a.p;
   });
-  DCA_ENTRIES.filter(e=>!e.pending&&e.price&&e.shares).forEach(e=>{
-    if(!map[e.tk]) map[e.tk]={tk:e.tk,nm:e.nm,s:0,_tc:0,p:null,b:null,sl:null,sources:new Set(),manualIdx:-1};
-    map[e.tk].s+=e.shares;
-    map[e.tk]._tc+=e.shares*e.price;
-    map[e.tk].sources.add('DCA');
-    // Approximate live price from latest DCA tick if no other source provided one
-    if(!map[e.tk].p) map[e.tk].p=e.price;
+  DCA_PLANS.filter(p=>p.totalShares>0).forEach(p=>{
+    if(!map[p.tk]) map[p.tk]={tk:p.tk,nm:p.nm,s:0,_tc:0,p:null,b:null,sl:null,sources:new Set(),manualIdx:-1};
+    map[p.tk].s+=p.totalShares;
+    map[p.tk]._tc+=p.totalShares*(p.avgCost||0);
+    map[p.tk].sources.add('DCA');
   });
   return Object.values(map)
     .map(m=>({...m, c:m.s>0?m._tc/m.s:0, sources:[...m.sources]}))
@@ -326,7 +354,7 @@ function renderRisk(){
 // ========== DCA OWNER FILTER ==========
 let DCA_OWNER_FILTER=localStorage.getItem('dca_owner_filter')||'all';
 function _ownerOf(e){return (e.owner||'自己').trim()||'自己';}
-function getDcaOwners(){const s=new Set();DCA_ENTRIES.forEach(e=>s.add(_ownerOf(e)));return [...s];}
+function getDcaOwners(){const s=new Set();DCA_PLANS.forEach(p=>s.add(_ownerOf(p)));return [...s];}
 function filterDcaOwner(o,btn){
   DCA_OWNER_FILTER=o;
   localStorage.setItem('dca_owner_filter',o);
@@ -352,79 +380,52 @@ function renderDcaOwnerFilter(){
 
 function renderDCA(){
   renderDcaOwnerFilter();
-  // Filter entries by selected owner (default = all)
   const VISIBLE=DCA_OWNER_FILTER==='all'
-    ? DCA_ENTRIES
-    : DCA_ENTRIES.filter(e=>_ownerOf(e)===DCA_OWNER_FILTER);
-  const byTk={};
-  VISIBLE.forEach(e=>{if(!byTk[e.tk])byTk[e.tk]={nm:e.nm,entries:[]};byTk[e.tk].entries.push(e);});
-  const confirmed=VISIBLE.filter(e=>e.price&&!e.pending);
-  const totalAmt=confirmed.reduce((s,e)=>s+e.amt,0);
-  const uniqueTks=Object.keys(byTk);
-  const isSingle=uniqueTks.length<=1;
-  // Correct market value: sum each ticker's (own price × own shares).
-  // The old code multiplied total shares by the first ticker's price,
-  // which made the multi-stock summary wildly wrong.
-  let mktVal=0, allPriced=uniqueTks.length>0;
-  uniqueTks.forEach(tk=>{
-    const sh=byTk[tk].entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
-    const stockH=H.find(x=>x.tk===tk);
-    if(stockH&&stockH.p&&sh>0) mktVal+=stockH.p*sh;
-    else if(sh>0) allPriced=false;
+    ? DCA_PLANS
+    : DCA_PLANS.filter(p=>_ownerOf(p)===DCA_OWNER_FILTER);
+  const showOwners=getDcaOwners().length>1;
+  // Aggregate totals across visible plans
+  let totalCost=0,totalVal=0,monthlySum=0,allPriced=VISIBLE.length>0,anyShares=false;
+  VISIBLE.forEach(p=>{
+    totalCost+=(p.totalShares||0)*(p.avgCost||0);
+    monthlySum+=p.amount||0;
+    const cur=(H.find(x=>x.tk===p.tk)||{}).p;
+    if(p.totalShares>0){
+      anyShares=true;
+      if(cur) totalVal+=cur*p.totalShares; else allPriced=false;
+    }
   });
-  const pnl=allPriced&&totalAmt>0?mktVal-totalAmt:null;
-  const pnlPct=pnl===null?null:(pnl/totalAmt*100);
+  const pnl=(anyShares&&allPriced&&totalCost>0)?totalVal-totalCost:null;
+  const pnlPct=pnl===null?null:(pnl/totalCost*100);
   const pnlCls=pnl===null?'am':pnl>=0?'up':'dn';
-  // Single-stock metrics (only meaningful when one ticker)
-  const totalShares=confirmed.reduce((s,e)=>s+(e.shares||0),0);
-  const avgCost=totalShares>0?totalAmt/totalShares:0;
-  const singleTk=isSingle?uniqueTks[0]:null;
-  const singleCur=singleTk?(H.find(x=>x.tk===singleTk)||{}).p:null;
   const grid=document.getElementById('dcaSummaryGrid');
   if(grid){
-    const slot2=isSingle
-      ? `<div class="stat" data-g="均"><div class="slbl">平均成本</div><div class="sval am">${avgCost?avgCost.toFixed(2):'—'}</div><div class="sdelta ${singleCur&&singleCur>avgCost?'up':singleCur?'dn':'am'}">${singleCur?`現價 ${singleCur} (${singleCur>avgCost?'+':''}${((singleCur-avgCost)/avgCost*100).toFixed(1)}%)`:'—'}</div></div>`
-      : `<div class="stat" data-g="∑"><div class="slbl">持有檔數</div><div class="sval am">${uniqueTks.length}</div><div class="sdelta am">${VISIBLE.length} 筆紀錄</div></div>`;
-    const slot3=isSingle
-      ? `<div class="stat" data-g="股"><div class="slbl">累計股數</div><div class="sval am">${totalShares.toLocaleString()}</div><div class="sdelta am">${(totalShares/1000).toFixed(1)} 張</div></div>`
-      : `<div class="stat" data-g="$"><div class="slbl">市值</div><div class="sval ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${mktVal?'$'+Math.round(mktVal).toLocaleString():'—'}</div><div class="sdelta ${allPriced?(mktVal>=totalAmt?'up':'dn'):'am'}">${allPriced&&totalAmt?(mktVal>=totalAmt?'▲':'▼')+' vs 投入':'—'}</div></div>`;
     grid.innerHTML=
-      `<div class="stat" data-g="∑"><div class="slbl">總扣款金額</div><div class="sval am">$${totalAmt.toLocaleString()}</div><div class="sdelta am">${VISIBLE.length} 筆</div></div>`+
-      slot2+slot3+
-      `<div class="stat" data-g="${pnl===null?'—':pnl>=0?'▲':'▼'}"><div class="slbl">累計損益</div><div class="sval ${pnlCls}">${pnl===null?'—':(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()}</div><div class="sdelta ${pnlCls}">${pnlPct===null?'—':(pnl>=0?'+':'')+pnlPct.toFixed(1)+'%'}</div></div>`;
+      `<div class="stat" data-g="∑"><div class="slbl">總投入成本</div><div class="sval am">${totalCost?'$'+Math.round(totalCost).toLocaleString():'—'}</div><div class="sdelta am">${VISIBLE.length} 個計畫</div></div>`+
+      `<div class="stat" data-g="$"><div class="slbl">總市值</div><div class="sval ${pnlCls}">${totalVal?'$'+Math.round(totalVal).toLocaleString():'—'}</div><div class="sdelta ${pnlCls}">${pnl===null?'等股價更新':(pnl>=0?'▲':'▼')+' vs 成本'}</div></div>`+
+      `<div class="stat" data-g="${pnl===null?'—':pnl>=0?'▲':'▼'}"><div class="slbl">總損益</div><div class="sval ${pnlCls}">${pnl===null?'—':(pnl>=0?'+':'')+Math.round(pnl).toLocaleString()}</div><div class="sdelta ${pnlCls}">${pnlPct===null?'—':(pnl>=0?'+':'')+pnlPct.toFixed(1)+'%'}</div></div>`+
+      `<div class="stat" data-g="月"><div class="slbl">每月扣款</div><div class="sval am">${monthlySum?'$'+monthlySum.toLocaleString():'—'}</div><div class="sdelta am">共 ${VISIBLE.length} 檔</div></div>`;
   }
   const container=document.getElementById('dcaStockPanels');
   if(!container) return;
   container.innerHTML='';
-  Object.entries(byTk).forEach(([tk,data])=>{
-    const entries=[...data.entries].sort((a,b)=>new Date(a.date)-new Date(b.date));
-    const tkAmt=entries.filter(e=>!e.pending).reduce((s,e)=>s+e.amt,0);
-    const tkShares=entries.filter(e=>!e.pending).reduce((s,e)=>s+(e.shares||0),0);
-    const tkAvg=tkShares>0?tkAmt/tkShares:0;
-    const tkH=H.find(x=>x.tk===tk);
-    const tkCur=tkH?tkH.p:null;
-    const tkPnl=tkCur&&tkShares?(tkCur-tkAvg)*tkShares:null;
-    const prices=entries.filter(e=>e.price).map(e=>e.price);
-    const mn=prices.length?Math.min(...prices)-2:0,mx=prices.length?Math.max(...prices)+2:1;
-    const W=280,CH=48,pad=4;
-    const xStep=(W-pad*2)/(prices.length-1||1);
-    const yScale=(CH-pad*2)/(mx-mn||1);
-    const pts=prices.map((p,i)=>`${pad+i*xStep},${CH-pad-(p-mn)*yScale}`).join(' ');
-    let cumAmt=0,cumShares=0;
-    const avgPts=entries.filter(e=>e.price).map((e,i)=>{cumAmt+=e.amt;cumShares+=e.shares;return `${pad+i*xStep},${CH-pad-(cumAmt/cumShares-mn)*yScale}`;}).join(' ');
-    const showOwners=getDcaOwners().length>1;
-    const entryRows=entries.map(e=>{
-      const isPending=e.pending||!e.price;
-      const ownerBadge=showOwners?`<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 6px;border-radius:8px;margin-left:6px">👤 ${_ownerOf(e)}</span>`:'';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(26,37,53,0.5);opacity:${isPending?0.5:1}"><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">${e.date}${ownerBadge}</div><div style="font-family:var(--mono);font-size:14px;color:${isPending?'var(--text-dim)':'var(--amber)'}">${isPending?`<input type="number" placeholder="填入價格" style="width:80px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--amber);font-family:var(--mono);font-size:13px;padding:2px 6px;border-radius:4px" onchange="fillDcaPrice(${e.id},this.value)">`:'$'+e.price}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-primary)">${isPending?'待填':(e.shares+'股')}</div><div style="font-family:var(--mono);font-size:14px;color:var(--text-secondary)">$${e.amt.toLocaleString()}</div><div style="display:flex;gap:2px"><button onclick="editDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:13px;padding:2px 6px" title="編輯">✏️</button><button onclick="deleteDcaEntry(${e.id})" style="background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:2px 6px" title="刪除">✕</button></div></div>`;
-    }).join('');
-    container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${tk} ${data.nm}</div><div style="display:flex;align-items:center;gap:10px"><span style="font-family:var(--mono);font-size:12px;color:var(--green)">${entries.length} 筆</span><button onclick="deleteDcaStock('${tk}')" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這檔的全部紀錄">🗑️ 刪除整檔</button></div></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${tkAvg.toFixed(2)}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">累計損益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${tkPnl===null?'var(--text-dim)':tkPnl>=0?'var(--green)':'var(--red)'}">${tkPnl===null?'—':(tkPnl>=0?'+':'')+Math.round(tkPnl).toLocaleString()}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${tkShares}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總投入</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">$${tkAmt.toLocaleString()}</div></div></div>${prices.length>=2?`<div style="margin-bottom:14px"><div style="font-family:var(--mono);font-size:12px;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:8px">成本走勢</div><div class="mini-chart"><svg viewBox="0 0 ${W} ${CH}" preserveAspectRatio="none" style="width:100%;height:48px"><defs><linearGradient id="cg${tk}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ffb832" stop-opacity="0.2"/><stop offset="100%" stop-color="#ffb832" stop-opacity="0"/></linearGradient></defs><polygon points="${pts} ${pad+(prices.length-1)*xStep},${CH-pad} ${pad},${CH-pad}" fill="url(#cg${tk})"/><polyline points="${pts}" fill="none" stroke="#ffb832" stroke-width="2" stroke-linejoin="round"/><polyline points="${avgPts}" fill="none" stroke="var(--green)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linejoin="round"/>${prices.map((p,i)=>`<circle cx="${pad+i*xStep}" cy="${CH-pad-(p-mn)*yScale}" r="3" fill="#ffb832"/>`).join('')}</svg></div></div>`:''}<button class="dca-accordion-btn" id="dca-acc-arrow-${tk}" onclick="toggleDcaAccordion('${tk}')"><span>▼ 展開明細（${entries.length} 筆）</span><span style="font-family:var(--mono);font-size:12px">$${tkAmt.toLocaleString()}</span></button><div class="dca-accordion-content" id="dca-acc-${tk}" style="max-height:0"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)"><span>日期</span><span>成交價</span><span>股數</span><span>金額</span><span></span></div>${entryRows}</div></div></div>`;
+  VISIBLE.forEach(p=>{
+    const cur=(H.find(x=>x.tk===p.tk)||{}).p||null;
+    const cost=(p.totalShares||0)*(p.avgCost||0);
+    const val=(cur&&p.totalShares)?cur*p.totalShares:null;
+    const pPnl=(val!==null&&cost>0)?val-cost:null;
+    const pPct=pPnl===null?null:(pPnl/cost*100);
+    const curPct=(cur&&p.avgCost)?((cur-p.avgCost)/p.avgCost*100):null;
+    const pnlColor=pPnl===null?'var(--text-dim)':pPnl>=0?'var(--green)':'var(--red)';
+    const ownerBadge=showOwners?`<span style="font-family:var(--mono);font-size:11px;color:var(--text-dim);background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);padding:1px 7px;border-radius:8px;margin-left:8px">👤 ${_ownerOf(p)}</span>`:'';
+    const curLine=cur?`現價 $${cur}${curPct!==null?` (${curPct>=0?'+':''}${curPct.toFixed(1)}%)`:''}`:'現價待更新';
+    container.innerHTML+=`<div class="panel" style="margin-bottom:10px"><div class="phead"><div class="plabel">${p.tk} ${p.nm}${ownerBadge}</div><div style="display:flex;align-items:center;gap:6px"><button onclick="editDcaPlan(${p.id})" style="background:rgba(255,184,50,0.08);border:1px solid rgba(255,184,50,0.3);color:var(--amber);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="編輯這個計畫">✏️ 編輯</button><button onclick="deleteDcaPlan(${p.id})" style="background:rgba(255,69,96,0.08);border:1px solid rgba(255,69,96,0.3);color:var(--red);font-family:var(--mono);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer" title="刪除這個計畫">🗑️</button></div></div><div class="pbody"><div class="g2" style="margin-bottom:12px"><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">平均成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber)">${p.avgCost?p.avgCost.toFixed(2):'—'}</div><div style="font-family:var(--mono);font-size:11px;color:${cur&&p.avgCost&&cur>=p.avgCost?'var(--green)':cur?'var(--red)':'var(--text-dim)'};margin-top:2px">${curLine}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">損益（台幣）</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${pnlColor}">${pPnl===null?'—':(pPnl>=0?'+':'')+Math.round(pPnl).toLocaleString()}</div><div style="font-family:var(--mono);font-size:11px;color:${pnlColor};margin-top:2px">${pPct===null?'等股價':(pPnl>=0?'+':'')+pPct.toFixed(1)+'%'}</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">總股數</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${(p.totalShares||0).toLocaleString()}</div><div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">${((p.totalShares||0)/1000).toFixed(2)} 張</div></div><div><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);letter-spacing:1px">投入成本</div><div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--text-primary)">${cost?'$'+Math.round(cost).toLocaleString():'—'}</div><div style="font-family:var(--mono);font-size:11px;color:var(--text-dim);margin-top:2px">${val!==null?'現值 $'+Math.round(val).toLocaleString():''}</div></div></div><div style="display:flex;gap:14px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--border);font-family:var(--mono);font-size:13px;color:var(--text-secondary)"><span>💰 每月扣 ${p.amount?'$'+p.amount.toLocaleString():'—'}</span><span>📅 每月 ${p.day} 號</span></div></div></div>`;
   });
   if(VISIBLE.length===0){
-    const isFiltered=DCA_OWNER_FILTER!=='all'&&DCA_ENTRIES.length>0;
+    const isFiltered=DCA_OWNER_FILTER!=='all'&&DCA_PLANS.length>0;
     container.innerHTML=isFiltered
-      ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">👤</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">「${DCA_OWNER_FILTER}」這個帳戶還沒有定期定額紀錄</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">切到「全部」看其他帳戶，或新增一筆。</div></div>`
-      : `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">📅</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">尚無扣款紀錄</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">點上方「新增定期定額計畫」<br>設定好開始日期和每月扣款金額<br>系統自動產生所有預計扣款日</div></div>`;
+      ? `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">👤</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">「${DCA_OWNER_FILTER}」這個帳戶還沒有定期定額計畫</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">切到「全部」看其他帳戶，或新增一筆。</div></div>`
+      : `<div style="text-align:center;padding:28px 16px"><div style="font-size:32px;margin-bottom:12px">📅</div><div style="font-family:var(--mono);font-size:15px;color:var(--text-dim);margin-bottom:8px">尚無定期定額計畫</div><div style="font-size:14px;color:var(--text-dim);line-height:1.7">點上方「新增定期定額計畫」<br>照著券商 App 的庫存畫面填 5 個欄位即可<br>系統自動算出損益、扣款日提醒</div></div>`;
   }
   renderDcaStrategy();
 }
@@ -432,7 +433,7 @@ function renderDCA(){
 function renderDcaStrategy(){
   const el=document.getElementById('dcaStrategyBody');
   if(!el) return;
-  const tks=[...new Set(DCA_ENTRIES.map(e=>e.tk))];
+  const tks=[...new Set(DCA_PLANS.map(p=>p.tk))];
   let html=`<div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:var(--green)">// 為什麼定期定額有效</div><div class="kbody">不管股價高低每月固定買入，股價低時自動買到更多股，長期平滑成本。你不需要預測市場高低點，時間幫你做事。</div></div><div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:var(--amber)">// 什麼時候可以加碼</div><div class="kbody">大盤單日跌超過 3%、VIX 恐慌指數超過 30、遇到重大系統性事件，是加碼好時機。這種時候買比平時多 1-2 倍。</div></div>`;
   const tips={
     '006208':{color:'var(--green)',text:'富邦台50追蹤台灣前50大企業，分散個股風險。長期年報酬約 8-10%，適合作為核心持倉長期定期定額。'},
@@ -444,7 +445,7 @@ function renderDcaStrategy(){
   };
   tks.forEach(tk=>{
     const tip=tips[tk];
-    const nm=STOCK_NAMES[tk]||DCA_ENTRIES.find(e=>e.tk===tk)?.nm||tk;
+    const nm=STOCK_NAMES[tk]||DCA_PLANS.find(p=>p.tk===tk)?.nm||tk;
     if(tip) html+=`<div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:${tip.color}">// ${tk} ${nm}</div><div class="kbody">${tip.text}</div></div>`;
     else html+=`<div class="kcard" style="margin-bottom:8px"><div class="ktitle" style="color:var(--text-secondary)">// ${tk} ${nm}</div><div class="kbody">定期定額最適合波動性較高但長期有上漲趨勢的標的。記得定期檢視這支的基本面是否仍然成立。</div></div>`;
   });
@@ -457,64 +458,47 @@ function toggleDcaForm(){
   const open=f.style.display==='none';
   f.style.display=open?'block':'none';
   arrow.textContent=open?'▲':'▼';
-  if(open){const today=new Date().toISOString().split('T')[0];document.getElementById('dca-date').value=today;}
-  else resetDcaFormUI();
+  if(!open) resetDcaFormUI();
 }
 
-let editingDcaId=null;
+let editingPlanId=null;
 function resetDcaFormUI(){
-  editingDcaId=null;
-  const b=document.getElementById('dcaSingleSubmit');
-  if(b) b.textContent='確認新增';
+  editingPlanId=null;
+  ['dca-tk','dca-nm','dca-owner','dca-amt','dca-day','dca-shares','dca-cost'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const lbl=document.getElementById('dca-edit-label'); if(lbl) lbl.style.display='none';
+  const cancel=document.getElementById('dcaCancel'); if(cancel) cancel.style.display='none';
+  const submit=document.getElementById('dcaSubmit'); if(submit) submit.textContent='確認新增';
 }
-function editDcaEntry(id){
-  const e=DCA_ENTRIES.find(x=>x.id===id);
-  if(!e) return;
-  editingDcaId=id;
-  const f=document.getElementById('dcaForm');
-  if(f.style.display==='none'){ f.style.display='block'; document.getElementById('dcaFormArrow').textContent='▲'; }
-  // Force single-record mode (editing one entry, not creating a plan)
-  setDcaMode('single', document.getElementById('mode-single'));
-  document.getElementById('dca-tk').value=e.tk||'';
-  document.getElementById('dca-nm').value=e.nm||'';
-  document.getElementById('dca-date').value=e.date||'';
-  document.getElementById('dca-amt').value=e.amt||'';
-  document.getElementById('dca-price').value=e.price||'';
-  document.getElementById('dca-shares').value=e.shares||'';
-  const ownerEl=document.getElementById('dca-owner'); if(ownerEl) ownerEl.value=_ownerOf(e);
-  const b=document.getElementById('dcaSingleSubmit'); if(b) b.textContent='確認更新';
-  f.scrollIntoView({behavior:'smooth',block:'center'});
-}
-function addDcaEntry(){
-  const tk=document.getElementById('dca-tk').value.trim();
-  const nm=document.getElementById('dca-nm').value.trim();
-  const date=document.getElementById('dca-date').value;
-  const amt=parseFloat(document.getElementById('dca-amt').value)||0;
-  const price=parseFloat(document.getElementById('dca-price').value)||0;
-  const shares=parseInt(document.getElementById('dca-shares').value)||(price>0?Math.floor(amt/price):0);
-  const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!date||!amt||!price) return;
-  if(editingDcaId!==null){
-    const e=DCA_ENTRIES.find(x=>x.id===editingDcaId);
-    if(e){ Object.assign(e,{tk,nm:nm||tk,date,amt,price,shares,owner,pending:false}); }
-  } else {
-    DCA_ENTRIES.push({id:dcaNextId++,tk,nm:nm||tk,date,amt,price,shares,owner});
-  }
-  DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
+function cancelDcaEdit(){
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';
   resetDcaFormUI();
-  saveData(); renderDCA();
 }
-
-function deleteDcaEntry(id){ DCA_ENTRIES=DCA_ENTRIES.filter(e=>e.id!==id); saveData(); renderDCA(); }
-
-function deleteDcaStock(tk){
-  const entries=DCA_ENTRIES.filter(e=>e.tk===tk);
-  if(!entries.length) return;
-  const nm=entries[0].nm||tk;
-  if(!confirm(`確定要刪除 ${tk} ${nm} 的全部 ${entries.length} 筆定期定額紀錄嗎？\n\n此操作無法復原。`)) return;
-  DCA_ENTRIES=DCA_ENTRIES.filter(e=>e.tk!==tk);
+function editDcaPlan(id){
+  const p=DCA_PLANS.find(x=>x.id===id);
+  if(!p) return;
+  editingPlanId=id;
+  const f=document.getElementById('dcaForm');
+  f.style.display='block';
+  document.getElementById('dcaFormArrow').textContent='▲';
+  document.getElementById('dca-tk').value=p.tk||'';
+  document.getElementById('dca-nm').value=p.nm||'';
+  document.getElementById('dca-owner').value=_ownerOf(p);
+  document.getElementById('dca-amt').value=p.amount||'';
+  document.getElementById('dca-day').value=p.day||'';
+  document.getElementById('dca-shares').value=p.totalShares||'';
+  document.getElementById('dca-cost').value=p.avgCost||'';
+  const lbl=document.getElementById('dca-edit-label'); if(lbl){lbl.style.display='block';lbl.textContent='✏️ 編輯 '+p.tk+' '+(p.nm||'')+' 的計畫';}
+  const cancel=document.getElementById('dcaCancel'); if(cancel) cancel.style.display='block';
+  const submit=document.getElementById('dcaSubmit'); if(submit) submit.textContent='確認更新';
+  f.scrollIntoView({behavior:'smooth',block:'center'});
+}
+function deleteDcaPlan(id){
+  const p=DCA_PLANS.find(x=>x.id===id);
+  if(!p) return;
+  const sameTk=DCA_PLANS.filter(x=>x.tk===p.tk).length>1;
+  if(!confirm(`確定要刪除 ${p.tk} ${p.nm||''}${sameTk?'（'+_ownerOf(p)+'）':''} 的定期定額計畫嗎？\n\n此操作無法復原。`)) return;
+  DCA_PLANS=DCA_PLANS.filter(x=>x.id!==id);
   saveData(); renderDCA();
 }
 
@@ -594,7 +578,8 @@ function addTrade(){
 
 // ========== ALERTS (向錢進) ==========
 let alFilter='all';
-function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function filterAL(f,btn){alFilter=f;document.querySelectorAll('.al-filter:not(#tradeStatsToggle)').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderAL();}
+function toggleTradeStats(btn){const sec=document.getElementById('tradeStatsSection');const open=sec.style.display!=='none';sec.style.display=open?'none':'block';btn.classList.toggle('active',!open);}
 const AL_STATUS={watching:{label:'👀 追蹤中',cls:'watching'},holding:{label:'💼 持有中',cls:'holding'},sold_profit:{label:'✅ 獲利出場',cls:'sold_profit'},sold_loss:{label:'❌ 停損出場',cls:'sold_loss'}};
 
 function renderAL(){
@@ -878,7 +863,7 @@ function obFinish(){
     const s=parseInt(inputs[2].value)||0, c=parseFloat(inputs[3].value)||0, b=parseFloat(inputs[4].value)||0;
     if(tk&&s&&c) H.push({tk,nm:nm||tk,p:c,c,s,b:b||0,sl:0});
   });
-  AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;
+  AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};DCA_PLANS=[];nid=1;ntid=1;dcaNextId=1;dcaPlanNextId=1;
   saveData();
   document.getElementById('onboarding').style.display='none';
   renderAll();
@@ -887,7 +872,7 @@ function obFinish(){
 function obSkip(){
   TOTAL_ASSETS=600000;
   H=[{tk:'006208',nm:'富邦台50',p:118.5,c:105,s:500,b:110,sl:135}];
-  AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;
+  AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};DCA_PLANS=[];nid=1;ntid=1;dcaNextId=1;dcaPlanNextId=1;
   saveData();
   document.getElementById('onboarding').style.display='none';
   renderAll();
@@ -896,6 +881,7 @@ function obSkip(){
 // ========== SETTINGS DATA ==========
 function renderSettingsData(){
   renderSettingsSrcChips();
+  renderBackupFolderStatus();
   const cfgTotal=document.getElementById('cfg-total');
   if(cfgTotal) cfgTotal.value=TOTAL_ASSETS||'';
   const cloudInput=document.getElementById('cloud-api-url');
@@ -929,25 +915,36 @@ function editHolding(i){
   saveData();renderAll();renderSettingsData();
 }
 function deleteHolding(i){if(!confirm(`確定刪除 ${H[i].tk} ${H[i].nm}？`))return;H.splice(i,1);saveData();renderAll();renderSettingsData();}
-function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];nid=1;ntid=1;dcaNextId=1;renderAll();renderSettingsData();showOnboarding();}
-function exportData(){
-  const data=JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES},null,2);
-  const blob=new Blob([data],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
-  a.click();
+function clearAllData(){if(!confirm('確定清除所有資料？這個動作不可復原。'))return;localStorage.removeItem('invest_os_data');TOTAL_ASSETS=0;H=[];AL=[];TRADES=[];DCA_ENTRIES=[];DCA_META={};DCA_PLANS=[];nid=1;ntid=1;dcaNextId=1;dcaPlanNextId=1;renderAll();renderSettingsData();showOnboarding();}
+function _bkpDB(){return new Promise((res,rej)=>{const r=indexedDB.open('invest_os',1);r.onupgradeneeded=()=>r.result.createObjectStore('handles');r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function _saveBkpHandle(h){const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readwrite');tx.objectStore('handles').put(h,'backup_dir');tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);});}
+async function _loadBkpHandle(){try{const db=await _bkpDB();return new Promise((res,rej)=>{const tx=db.transaction('handles','readonly');const req=tx.objectStore('handles').get('backup_dir');req.onsuccess=()=>res(req.result);req.onerror=()=>rej(req.error);});}catch{return null;}}
+async function _verifyBkpPerm(h){const o={mode:'readwrite'};if(await h.queryPermission(o)==='granted')return true;return await h.requestPermission(o)==='granted';}
+async function pickBackupFolder(){
+  if(!window.showDirectoryPicker){alert('你的瀏覽器不支援此功能，請用 Chrome / Edge / Safari 15.2+');return;}
+  try{const h=await window.showDirectoryPicker({mode:'readwrite'});await _saveBkpHandle(h);renderBackupFolderStatus();alert('已綁定備份資料夾：'+h.name);}
+  catch(e){if(e.name!=='AbortError')alert('選擇失敗：'+e.message);}
 }
-
-// ========== DCA ACCORDION ==========
-let dcaAccordionOpen={};
-function toggleDcaAccordion(tk){
-  dcaAccordionOpen[tk]=!dcaAccordionOpen[tk];
-  const content=document.getElementById('dca-acc-'+tk);
-  const arrow=document.getElementById('dca-acc-arrow-'+tk);
-  if(!content) return;
-  if(dcaAccordionOpen[tk]){content.style.maxHeight=content.scrollHeight+'px';if(arrow)arrow.textContent='▲ 收起';}
-  else{content.style.maxHeight='0';if(arrow)arrow.textContent='▼ 展開明細';}
+async function renderBackupFolderStatus(){
+  const el=document.getElementById('bkpFolderStatus');if(!el)return;
+  const h=await _loadBkpHandle();
+  if(h){el.textContent='📁 '+h.name+' （已綁定）';el.style.color='var(--green)';}
+  else{el.textContent='(尚未選定 — 下載到瀏覽器預設位置)';el.style.color='var(--text-dim)';}
+}
+async function exportData(){
+  const data=JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_PLANS,DCA_META},null,2);
+  const filename='invest_os_backup_'+new Date().toISOString().split('T')[0]+'.json';
+  try{
+    const h=await _loadBkpHandle();
+    if(h && await _verifyBkpPerm(h)){
+      const fh=await h.getFileHandle(filename,{create:true});
+      const w=await fh.createWritable();await w.write(data);await w.close();
+      alert('✓ 已存到 '+h.name+'/'+filename);
+      return;
+    }
+  }catch(e){console.warn('Folder save failed, falling back to download:',e);}
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
 }
 
 // ========== INLINE EDIT ==========
@@ -1108,7 +1105,7 @@ function autoName(tk,targetId){
   const el=document.getElementById(targetId);
   if(!el) return;
   let nm=STOCK_NAMES[tk];
-  if(!nm){const src=[...H,...AL,...DCA_ENTRIES,...TRADES].find(x=>x.tk===tk);if(src)nm=src.nm;}
+  if(!nm){const src=[...H,...AL,...DCA_PLANS,...TRADES].find(x=>x.tk===tk);if(src)nm=src.nm;}
   if(!nm){const c=_readNameCache();if(c[tk])nm=c[tk];}
   if(nm){el.value=nm;el.style.color='var(--green)';setTimeout(()=>{el.style.color='';},1000);return;}
   // Fall through to backend Yahoo lookup if local sources didn't have it.
@@ -1132,54 +1129,28 @@ function autoName(tk,targetId){
 }
 
 // ========== DCA PLAN ==========
-function setDcaMode(mode,btn){
-  document.getElementById('dca-plan-fields').style.display=mode==='plan'?'block':'none';
-  document.getElementById('dca-single-fields').style.display=mode==='single'?'block':'none';
-  document.getElementById('mode-plan').className=mode==='plan'?'btn btn-p':'btn';
-  document.getElementById('mode-single').className=mode==='single'?'btn btn-p':'btn';
-  if(mode==='plan')document.getElementById('mode-single').style.cssText='flex:1;padding:7px;font-size:13px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)';
-  else document.getElementById('mode-plan').style.cssText='flex:1;padding:7px;font-size:13px;background:rgba(255,255,255,0.05);border:1px solid var(--border);color:var(--text-secondary)';
-}
-function getDcaPlanDates(startStr,endStr,dayOfMonth){
-  const dates=[];
-  const start=new Date(startStr);
-  const end=endStr?new Date(endStr):new Date(start.getFullYear()+5,start.getMonth(),start.getDate());
-  const now=new Date();
-  let cur=new Date(start.getFullYear(),start.getMonth(),dayOfMonth);
-  if(cur<start) cur.setMonth(cur.getMonth()+1);
-  while(cur<=end&&dates.length<120){dates.push({date:`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`,past:cur<=now});cur=new Date(cur.getFullYear(),cur.getMonth()+1,dayOfMonth);}
-  return dates;
-}
-function previewDcaPlan(){
-  const start=document.getElementById('dca-start').value;
-  const end=document.getElementById('dca-end').value;
-  const day=parseInt(document.getElementById('dca-day').value)||15;
-  const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
-  if(!start||!amt){document.getElementById('dca-preview').innerHTML='<div style="color:var(--red);font-family:var(--mono);font-size:13px">請填寫開始日期和金額</div>';return;}
-  const dates=getDcaPlanDates(start,end,day);
-  const past=dates.filter(d=>d.past).length;
-  const future=dates.filter(d=>!d.past).length;
-  const total=dates.length*amt;
-  document.getElementById('dca-preview').innerHTML=`<div style="background:rgba(0,200,150,0.06);border:1px solid rgba(0,200,150,0.2);border-radius:6px;padding:12px;margin-bottom:8px"><div style="font-family:var(--mono);font-size:12px;color:var(--text-dim);margin-bottom:8px;letter-spacing:1px">PREVIEW</div><div style="display:flex;gap:16px;flex-wrap:wrap"><div><div style="font-size:11px;color:var(--text-dim)">總期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--accent)">${dates.length} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">已過期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--amber)">${past} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">未來期數</div><div style="font-family:var(--mono);font-size:18px;color:var(--text-secondary)">${future} 期</div></div><div><div style="font-size:11px;color:var(--text-dim)">計畫總投入</div><div style="font-family:var(--mono);font-size:18px;color:var(--text-primary)">$${total.toLocaleString()}</div></div></div><div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:4px">${dates.map(d=>`<span style="font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:3px;background:${d.past?'rgba(0,200,150,0.15)':'rgba(255,255,255,0.05)'};color:${d.past?'var(--green)':'var(--text-dim)'};">${d.date.slice(0,7)}</span>`).join('')}</div></div>`;
-}
-function addDcaPlan(){
+// Snapshot model: create or update one plan per (ticker+owner).
+// Mirrors the broker app's holding screen — no per-month entries.
+function addDCA(){
   const tk=document.getElementById('dca-tk').value.trim();
   const nm=document.getElementById('dca-nm').value.trim()||STOCK_NAMES[tk]||tk;
-  const start=document.getElementById('dca-start').value;
-  const end=document.getElementById('dca-end').value;
-  const day=parseInt(document.getElementById('dca-day').value)||15;
-  const amt=parseInt(document.getElementById('dca-plan-amt').value)||0;
   const owner=(document.getElementById('dca-owner').value||'').trim()||'自己';
-  if(!tk||!start||!amt) return;
-  const dates=getDcaPlanDates(start,end,day);
-  dates.forEach(d=>{DCA_ENTRIES.push({id:dcaNextId++,tk,nm,date:d.date,amt,price:null,shares:null,owner,pending:!d.past});});
-  DCA_ENTRIES.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const amount=parseInt(document.getElementById('dca-amt').value)||0;
+  const day=Math.min(28,Math.max(1,parseInt(document.getElementById('dca-day').value)||15));
+  const totalShares=parseInt(document.getElementById('dca-shares').value)||0;
+  const avgCost=parseFloat(document.getElementById('dca-cost').value)||0;
+  if(!tk) return;
+  if(editingPlanId!==null){
+    const p=DCA_PLANS.find(x=>x.id===editingPlanId);
+    if(p) Object.assign(p,{tk,nm,owner,amount,day,totalShares,avgCost});
+  } else {
+    DCA_PLANS.push({id:dcaPlanNextId++,tk,nm,owner,amount,day,totalShares,avgCost});
+  }
   document.getElementById('dcaForm').style.display='none';
   document.getElementById('dcaFormArrow').textContent='▼';
-  document.getElementById('dca-preview').innerHTML='';
+  resetDcaFormUI();
   saveData(); renderDCA();
 }
-function fillDcaPrice(id,priceStr){const price=parseFloat(priceStr);if(!price)return;const e=DCA_ENTRIES.find(x=>x.id===id);if(!e)return;e.price=price;e.shares=Math.floor(e.amt/price);e.pending=false;saveData();renderDCA();}
 
 // ========== INIT ==========
 function renderAll(){renderH();renderTA();renderAL();renderLog();renderRisk();renderDCA();renderAllocation();renderSettingsData();renderAllSrcChips();renderSummaryStats();renderMorningReport();}
@@ -1205,8 +1176,8 @@ async function doCloudSetup(){
     if(data.error) throw new Error(data.error);
     setCloudUrl(url);setCloudApiKey(key);
     const merged=cloudToLocal_(data);
-    TOTAL_ASSETS=merged.TOTAL_ASSETS;H=merged.H;AL=merged.AL;TRADES=merged.TRADES;DCA_ENTRIES=merged.DCA_ENTRIES;
-    nid=merged.nid;ntid=merged.ntid;dcaNextId=merged.dcaNextId;
+    TOTAL_ASSETS=merged.TOTAL_ASSETS;H=merged.H;AL=merged.AL;TRADES=merged.TRADES;DCA_ENTRIES=merged.DCA_ENTRIES;DCA_PLANS=merged.DCA_PLANS;
+    nid=merged.nid;ntid=merged.ntid;dcaNextId=merged.dcaNextId;dcaPlanNextId=merged.dcaPlanNextId;
     saveData();
     msgEl.style.color='var(--green)';msgEl.textContent='✓ 連接成功！';
     setCloudStatus('🟢 已連動 Google Sheet');
@@ -1245,8 +1216,8 @@ async function bootstrap(){
   const cloud = await loadFromCloud();
   if (cloud) {
     TOTAL_ASSETS = cloud.TOTAL_ASSETS;
-    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES;
-    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
+    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES; DCA_PLANS = cloud.DCA_PLANS;
+    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId; dcaPlanNextId = cloud.dcaPlanNextId;
     saveData();
     setCloudStatus('🟢 已連動 Google Sheet');
     updateLastSync_();
@@ -1290,9 +1261,9 @@ async function pullFromCloud(){
   const cloud = await loadFromCloud();
   if (cloud) {
     TOTAL_ASSETS = cloud.TOTAL_ASSETS;
-    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES;
-    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId;
-    localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,nid,ntid,dcaNextId}));
+    H = cloud.H; AL = cloud.AL; TRADES = cloud.TRADES; DCA_ENTRIES = cloud.DCA_ENTRIES; DCA_PLANS = cloud.DCA_PLANS;
+    nid = cloud.nid; ntid = cloud.ntid; dcaNextId = cloud.dcaNextId; dcaPlanNextId = cloud.dcaPlanNextId;
+    localStorage.setItem('invest_os_data', JSON.stringify({TOTAL_ASSETS,H,AL,TRADES,DCA_ENTRIES,DCA_PLANS,DCA_META,nid,ntid,dcaNextId,dcaPlanNextId}));
     setCloudStatus('🟢 已從 Google Sheet 拉取');
     updateLastSync_();
     renderAll();

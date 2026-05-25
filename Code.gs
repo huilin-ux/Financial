@@ -10,7 +10,10 @@
  */
 
 // ========== 設定區 ==========
+// 預設用便宜又快的 flash：解析指令、查詢損益/持倉/追蹤、到價通知都用這個
 const GEMINI_MODEL = 'gemini-2.5-flash';
+// 深度分析才用 pro（較慢較貴）：每日早報、週五週報
+const GEMINI_MODEL_DEEP = 'gemini-2.5-pro';
 
 // Dashboard 跟 Web App 之間的通關密語。可以在 Sheet「設定」分頁加一列
 // api_key | <你自己的字串> 來覆寫；沒填就用下面的預設。
@@ -431,9 +434,11 @@ function getDCA() {
     const sh = getSheet_().getSheetByName('定期定額');
     if (!sh) throw new Error('找不到「定期定額」工作表');
     const data = sh.getDataRange().getValues();
-    // owner is an optional column (6th); falls back to '自己' on legacy sheets
+    // owner / total_shares / avg_cost are optional columns; fall back on legacy sheets
     const header = data[0] || [];
     const ownerIdx = header.findIndex(h => String(h).trim() === 'owner');
+    const sharesIdx = header.findIndex(h => String(h).trim() === 'total_shares');
+    const costIdx = header.findIndex(h => String(h).trim() === 'avg_cost');
     const rows = [];
     for (let i = 1; i < data.length; i++) {
       const [tk, nm, day, amount, active] = data[i];
@@ -445,6 +450,8 @@ function getDCA() {
         deduct_day: Number(day) || 0,
         amount: Number(amount) || 0,
         owner: ownerIdx >= 0 ? String(data[i][ownerIdx] || '自己').trim() : '自己',
+        total_shares: sharesIdx >= 0 ? Number(data[i][sharesIdx]) || 0 : 0,
+        avg_cost: costIdx >= 0 ? Number(data[i][costIdx]) || 0 : 0,
         active: true
       });
     }
@@ -568,10 +575,11 @@ function writeDCA_(rows) {
   const ss = getSheet_();
   const sh = ss.getSheetByName('定期定額') || ss.insertSheet('定期定額');
   sh.clear();
-  sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active', 'owner']);
+  sh.appendRow(['stock_tk', 'stock_nm', 'deduct_day', 'amount', 'active', 'owner', 'total_shares', 'avg_cost']);
   rows.forEach(r => sh.appendRow([
     r.stock_tk || '', r.stock_nm || '', r.deduct_day || 0, r.amount || 0,
-    r.active === false ? 'FALSE' : 'TRUE', r.owner || '自己'
+    r.active === false ? 'FALSE' : 'TRUE', r.owner || '自己',
+    r.total_shares || 0, r.avg_cost || 0
   ]));
 }
 
@@ -654,9 +662,14 @@ function fetchYahooName_(code) {
 }
 
 function fetchYahooPrice_(code) {
+  // 上市股票用 .TW，上櫃 / 興櫃用 .TWO；先試 .TW，404 就 fallback .TWO
+  return fetchYahooPriceFor_(code + '.TW') ?? fetchYahooPriceFor_(code + '.TWO');
+}
+
+function fetchYahooPriceFor_(symbol) {
   try {
     const url = 'https://query1.finance.yahoo.com/v8/finance/chart/'
-      + encodeURIComponent(code) + '.TW?interval=1d&range=5d';
+      + encodeURIComponent(symbol) + '?interval=1d&range=5d';
     const res = UrlFetchApp.fetch(url, {
       muteHttpExceptions: true,
       headers: { 'User-Agent': 'Mozilla/5.0' }
@@ -722,22 +735,27 @@ let LAST_GROUNDING = null;
  * grounded=true 會開啟 Google Search grounding，AI 會去搜當天真實資料再回答。
  * 搜尋結果（queries + sources）會存到 LAST_GROUNDING。
  */
-function askGemini(apiKey, prompt, grounded) {
+function askGemini(apiKey, prompt, grounded, model) {
   LAST_GROUNDING = null;
   if (!apiKey) {
     Logger.log('askGemini 未設定 API Key');
     return '';
   }
   try {
+    const useModel = model || GEMINI_MODEL;
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
-      + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
+      + useModel + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const isPro = useModel.indexOf('pro') !== -1;
+    const generationConfig = {
+      // pro 思考會吃掉輸出額度，grounded 報告給多一點空間
+      maxOutputTokens: grounded ? (isPro ? 8000 : 4000) : 800,
+      temperature: 0.8
+    };
+    // flash 可關閉思考省時省額度；pro 不支援關閉，交給預設
+    if (!isPro) generationConfig.thinkingConfig = { thinkingBudget: 0 };
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        maxOutputTokens: grounded ? 4000 : 800,
-        temperature: 0.8,
-        thinkingConfig: { thinkingBudget: 0 }
-      }
+      generationConfig: generationConfig
     };
     if (grounded) body.tools = [{ google_search: {} }];
     const res = UrlFetchApp.fetch(url, {
@@ -871,15 +889,22 @@ function sendMorningReport() {
     const watchlist = getWatchlist();
     const today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy年M月d日 EEEE');
 
-    // 算持倉損益
+    // 算持倉損益（每檔台幣盈虧）
     let totalPnl = 0;
+    let totalCost = 0;
+    let totalValue = 0;
     const holdingLines = holdings.map(h => {
       const price = getPrice(h.stock_tk) || h.cost;
-      const pnl = (price - h.cost) * h.shares;
+      const cost = h.cost * h.shares;
+      const value = price * h.shares;
+      const pnl = value - cost;
       const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
       totalPnl += pnl;
-      return `${h.stock_nm}(${h.stock_tk}) 現價$${price} 損益${pnl>=0?'+':''}${Math.round(pnl)}(${pnl>=0?'+':''}${pct}%)`;
+      totalCost += cost;
+      totalValue += value;
+      return `${h.stock_nm}(${h.stock_tk}) 持股${h.shares} 成本$${h.cost} 現價$${price} 市值$${Math.round(value)} 盈虧${pnl>=0?'+':''}${Math.round(pnl)}元(${pnl>=0?'+':''}${pct}%)`;
     }).join('\n') || '（無持倉）';
+    const totalPct = totalCost > 0 ? (totalPnl / totalCost * 100).toFixed(1) : '0';
 
     // 算向錢進距離
     const watchLines = watchlist.map(w => {
@@ -908,15 +933,15 @@ function sendMorningReport() {
 以上來源的數據最為權威準確，請優先引用這些網站的實際報導或數據頁面 URL。
 不要引用：比價網站(biggo等)、部落格、社群媒體、論壇。
 
-【持倉資料】
+【持倉資料】（金額單位皆為台幣 NT$）
 ${holdingLines}
+
+【持倉合計】總成本$${Math.round(totalCost)} 總市值$${Math.round(totalValue)} 總未實現損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元(${totalPnl>=0?'+':''}${totalPct}%)
 
 【向錢進清單】
 ${watchLines}
 
-【總未實現損益】${totalPnl>=0?'+':''}${Math.round(totalPnl)} 元
-
-輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 280 字）：
+輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 500 字）：
 
 ☀️ 投資阿喵共・今日早報
 🌅 早安 ${owner}！
@@ -927,8 +952,9 @@ ${watchLines}
 ・台幣匯率：（填入數字）（升/貶影響一句話）
 ・外資：（填入數字）（市場情緒一句話）
 
-【你的持倉今天】
-（每支一行，格式：・名稱(代號) 現價$x 損益+/-$x(+/-x%) → 今天影響 👍/⚠️）
+【你的持倉今天】（每檔務必標出台幣盈虧金額）
+（每支一行，格式：・名稱(代號) 現價$x 盈虧+/-x元(+/-x%) → 今天影響一句話 👍/⚠️）
+（最後一行加總：📊 總盈虧 +/-x元(+/-x%)）
 
 【向錢進狀態】
 （每支一行，格式：・名稱(代號) 現價$x 買入$x（距x%）🟢/🟡/🔴 一句話）
@@ -939,7 +965,7 @@ ${watchLines}
 
 💪 根據總損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元：賺錢稱讚${owner}眼光準，虧損溫暖鼓勵，一句話`;
 
-    const mainMsg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
+    const mainMsg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '今日早報生成失敗，請稍後查看。';
 
     // 第二則：來源（取 Gemini grounding 真實 URL 縮短）
     const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
@@ -1101,23 +1127,46 @@ function sendWeeklyReport() {
     const totalPct = totalCost > 0 ? totalPL / totalCost : 0;
 
     const prompt =
-`${owner} 本週收盤了，請寫一封週報。
-【本週持倉狀況】
+`你是 ${owner} 的投資助理阿喵共。本週台股已收盤，請上網搜尋本週真實市場資料，寫一封有料的週報。
+
+【${owner} 本週持倉狀況】
 總成本：${totalCost.toFixed(0)}
 總市值：${totalValue.toFixed(0)}
 總未實現損益：${totalPL.toFixed(0)}（${fmtPct_(totalPct)}）
-明細：
+個股明細：
 ${lines.join('\n') || '（無持倉）'}
 
-請用繁體中文寫一段 120-180 字的週報，要求：
-- 開頭祝他週末快樂
-- 回顧本週整體表現（不論賺賠都要正向）
-- 鼓勵繼續按計畫執行、不要被一週的波動影響
-- 提醒週末好好休息、陪家人朋友
-- 適當 emoji，溫暖可愛`;
+請用繁體中文寫 350-500 字的週報，務必先用 Google 搜尋本週（最近 5 個交易日）的真實資料，按以下結構：
 
-    const msg = askGemini(cfg.gemini_key, prompt) || '本週辛苦了，週末愉快！';
+📈 本週大盤回顧
+- 台股加權指數本週漲跌（用真實數字）、成交量、外資買賣超方向
+- 美股三大指數、費半本週表現，以及對台股的影響
+
+💼 你的持倉點評
+- 針對上面個股明細，點評本週表現較好/較弱的標的，簡短說明可能原因（產業消息、財報、大盤連動）
+
+👀 下週關注重點
+- 下週值得留意的事件：重要財報、除權息、央行/總經數據、國際變數
+
+💪 紀律提醒 + 收尾
+- 一句鼓勵 ${owner} 按計畫執行、不被單週波動影響
+- 提醒週末好好休息
+
+要求：數據要真實（搜尋後再寫，不要編造），語氣溫暖專業，適當用 emoji。`;
+
+    const msg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '本週辛苦了，週末愉快！';
     sendLine(cfg.line_token, '📊 投資阿喵共・週五週報\n' + msg, cfg.line_user_id);
+
+    // 第二則：來源（取 Gemini grounding 真實 URL）
+    if (LAST_GROUNDING && LAST_GROUNDING.sources && LAST_GROUNDING.sources.length) {
+      const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
+      const sourceLines = LAST_GROUNDING.sources.slice(0, 5).map(s => {
+        const label = (s.title || '來源').slice(0, 20);
+        return `・${label}：${shortenUrl(s.uri)}`;
+      }).join('\n');
+      Utilities.sleep(1000);
+      sendLine(cfg.line_token, `📰 本週資料來源\n${sourceLines}\n⏱ ${now}`, cfg.line_user_id);
+    }
   } catch (err) {
     Logger.log('sendWeeklyReport 失敗：' + err.message);
   }
