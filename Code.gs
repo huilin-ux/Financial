@@ -140,8 +140,8 @@ function executeIntent_(text, cfg) {
   // 快速關鍵字匹配
   const lower = text.toLowerCase();
   if (/^(說明|使用說明|help|推播時機|時機|功能|menu)$/i.test(text)) return helpText_();
-  if (/^(查持倉|查詢持倉|持倉|我的持倉)$/i.test(text)) return listHoldings_();
-  if (/^(查向錢進|向錢進|清單|追蹤)$/i.test(text)) return listWatchlist_();
+  if (/^(查持倉|查詢持倉|持倉|我的持倉|目前持倉)$/i.test(text)) return listHoldings_();
+  if (/^(查向錢進|向錢進|清單|追蹤|追蹤目標)$/i.test(text)) return listWatchlist_();
   if (/^(現在損益|損益|我的損益|現況)$/i.test(text)) return currentPnl_();
   if (/^(今日早報|早報|生成早報)$/i.test(text)) {
     // 即時生成早報並回傳
@@ -208,35 +208,63 @@ function helpText_() {
 ・「買 2330 10股 1050」記錄交易
 ・「賣 2330 5股 1100 賺 2500」
 ・「新增向錢進 2454 聯發科 買1300 利1500 損1200」
-・「查持倉」「查向錢進」「現在損益」「說明」`;
+・「目前持倉」（一般持倉＋定期定額）
+・「追蹤目標」（向錢進清單）
+・「現在損益」「說明」`;
 }
 
 function listHoldings_() {
-  const list = getHoldings();
-  if (!list.length) return '目前沒有持倉 📭';
-  const lines = list.map(h => {
-    const price = getPrice(h.stock_tk) || h.cost;
-    const pnl = (price - h.cost) * h.shares;
-    const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
-    return `・${h.stock_nm}(${h.stock_tk}) ${h.shares}股\n  現價 ${price} | 成本 ${h.cost} | 損益 ${pnl.toFixed(0)} (${pct}%)`;
-  });
-  return '📊 你的持倉\n' + lines.join('\n');
+  const holdings = getHoldings();
+  const dca = getDCA();
+  const watch = getWatchlist();
+  const watchActive = watch.filter(w => w.status === 'watching' || w.status === 'holding').length;
+
+  const sections = [];
+
+  if (holdings.length) {
+    const lines = holdings.map(h => {
+      const price = getPrice(h.stock_tk) || h.cost;
+      const pnl = (price - h.cost) * h.shares;
+      const pct = h.cost > 0 ? ((price - h.cost) / h.cost * 100).toFixed(1) : '0';
+      return `・${h.stock_nm}(${h.stock_tk}) ${h.shares}股\n  現價 ${price}｜損益 ${pnl >= 0 ? '+' : ''}${Math.round(pnl)} (${pct}%)`;
+    });
+    sections.push('【一般持倉】\n' + lines.join('\n'));
+  }
+
+  if (dca.length) {
+    const lines = dca.map(d => {
+      const price = getPrice(d.stock_tk) || d.avg_cost;
+      if (d.total_shares && d.avg_cost) {
+        const pnl = (price - d.avg_cost) * d.total_shares;
+        const pct = d.avg_cost > 0 ? ((price - d.avg_cost) / d.avg_cost * 100).toFixed(1) : '0';
+        return `・${d.stock_nm}(${d.stock_tk}) ${d.total_shares}股\n  損益 ${pnl >= 0 ? '+' : ''}${Math.round(pnl)} (${pct}%)｜每月 ${d.deduct_day} 號扣 $${d.amount}`;
+      }
+      return `・${d.stock_nm}(${d.stock_tk})\n  每月 ${d.deduct_day} 號扣 $${d.amount}`;
+    });
+    sections.push('【定期定額】\n' + lines.join('\n'));
+  }
+
+  if (!sections.length) return '目前沒有持倉 📭';
+
+  let out = '📊 目前持倉\n\n' + sections.join('\n\n');
+  out += `\n\n🎯 另有 ${watchActive} 筆向錢進追蹤中（傳「追蹤目標」查看）`;
+  return out;
 }
 
 function listWatchlist_() {
-  const list = getWatchlist();
-  if (!list.length) return '向錢進清單是空的 📭';
+  const list = getWatchlist().filter(w => w.status === 'watching' || w.status === 'holding');
+  if (!list.length) return '🎯 追蹤目標（向錢進）是空的 📭';
   const lines = list.map(w => {
     const price = getPrice(w.stock_tk) || w.buy_price;
     if (w.status === 'holding') {
       const tpDist = w.take_profit ? ((w.take_profit - price) / price * 100).toFixed(1) : '?';
-      return `・${w.stock_nm}(${w.stock_tk}) 💼持有\n  現價 ${price} | 距停利 ${w.take_profit} 差 ${tpDist}%`;
+      return `・${w.stock_nm}(${w.stock_tk}) 💼持有\n  現價 ${price}｜距停利 ${w.take_profit} 差 ${tpDist}%`;
     } else {
       const buyDist = ((price - w.buy_price) / w.buy_price * 100).toFixed(1);
-      return `・${w.stock_nm}(${w.stock_tk}) 👀追蹤 [${w.source}]\n  現價 ${price} | 買入 ${w.buy_price} (差 ${buyDist}%)`;
+      return `・${w.stock_nm}(${w.stock_tk}) 👀追蹤 [${w.source}]\n  現價 ${price}｜買入 ${w.buy_price} (差 ${buyDist}%)`;
     }
   });
-  return '🎯 向錢進清單\n' + lines.join('\n');
+  return '🎯 追蹤目標（向錢進）\n' + lines.join('\n');
 }
 
 function currentPnl_() {
@@ -735,7 +763,7 @@ let LAST_GROUNDING = null;
  * grounded=true 會開啟 Google Search grounding，AI 會去搜當天真實資料再回答。
  * 搜尋結果（queries + sources）會存到 LAST_GROUNDING。
  */
-function askGemini(apiKey, prompt, grounded, model) {
+function askGemini(apiKey, prompt, grounded, model, deepThinking) {
   LAST_GROUNDING = null;
   if (!apiKey) {
     Logger.log('askGemini 未設定 API Key');
@@ -746,13 +774,14 @@ function askGemini(apiKey, prompt, grounded, model) {
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
       + useModel + ':generateContent?key=' + encodeURIComponent(apiKey);
     const isPro = useModel.indexOf('pro') !== -1;
+    // 思考預算：pro 限制 2048 避免吃光輸出；flash 深度報告開 4096 加深分析；其餘關閉省額度
+    const thinkingBudget = isPro ? 2048 : (deepThinking ? 4096 : 0);
     const generationConfig = {
-      // maxOutputTokens 在 2.5 模型含「思考」token；pro 要給夠大避免思考吃光、輸出空白
-      maxOutputTokens: grounded ? (isPro ? 12000 : 4000) : 800,
+      // maxOutputTokens 在 2.5 模型含「思考」token；有思考時給夠大避免思考吃光、輸出空白
+      maxOutputTokens: grounded ? ((isPro || deepThinking) ? 12000 : 4000) : 800,
       temperature: 0.8
     };
-    // flash 關閉思考省額度；pro 不能關但限制思考量，留足空間給可見輸出
-    generationConfig.thinkingConfig = { thinkingBudget: isPro ? 2048 : 0 };
+    generationConfig.thinkingConfig = { thinkingBudget: thinkingBudget };
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: generationConfig
@@ -799,8 +828,9 @@ function askGemini(apiKey, prompt, grounded, model) {
 function askGeminiDeep(apiKey, prompt, grounded) {
   const out = askGemini(apiKey, prompt, grounded, GEMINI_MODEL_DEEP);
   if (out) return out;
-  Logger.log('askGeminiDeep: pro 回傳空白，自動退回 flash');
-  return askGemini(apiKey, prompt, grounded, GEMINI_MODEL);
+  // pro 不可用（免費額度常見）→ 改用 flash 並開啟深度思考，分析仍然有深度
+  Logger.log('askGeminiDeep: pro 回傳空白，改用 flash + 深度思考');
+  return askGemini(apiKey, prompt, grounded, GEMINI_MODEL, true);
 }
 
 /**
@@ -952,7 +982,7 @@ ${holdingLines}
 【向錢進清單】
 ${watchLines}
 
-輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 500 字）：
+輸出格式（直接輸出，不要加任何說明或來源連結，不要用 markdown **粗體**，LINE 不支援，全文 ≤ 700 字）：
 
 ☀️ 投資阿喵共・今日早報
 🌅 早安 ${owner}！
@@ -970,6 +1000,9 @@ ${watchLines}
 【向錢進狀態】
 （每支一行，格式：・名稱(代號) 現價$x 買入$x（距x%）🟢/🟡/🔴 一句話）
 （距買入價 <5% 用 🟢接近了，5-20% 用 🟡等待，>20% 或低於買入價用 🔴）
+
+【阿喵共的觀察】
+（3-4 句深入分析：綜合今天美股/外資/匯率，研判對${owner}持倉與向錢進的整體影響，點出今天最該留意的一個風險或機會，要有具體理由不要空話）
 
 【今天只需要做一件事】
 → 一個具體行動，不超過20字
