@@ -747,12 +747,12 @@ function askGemini(apiKey, prompt, grounded, model) {
       + useModel + ':generateContent?key=' + encodeURIComponent(apiKey);
     const isPro = useModel.indexOf('pro') !== -1;
     const generationConfig = {
-      // pro 思考會吃掉輸出額度，grounded 報告給多一點空間
-      maxOutputTokens: grounded ? (isPro ? 8000 : 4000) : 800,
+      // maxOutputTokens 在 2.5 模型含「思考」token；pro 要給夠大避免思考吃光、輸出空白
+      maxOutputTokens: grounded ? (isPro ? 12000 : 4000) : 800,
       temperature: 0.8
     };
-    // flash 可關閉思考省時省額度；pro 不支援關閉，交給預設
-    if (!isPro) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+    // flash 關閉思考省額度；pro 不能關但限制思考量，留足空間給可見輸出
+    generationConfig.thinkingConfig = { thinkingBudget: isPro ? 2048 : 0 };
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: generationConfig
@@ -790,6 +790,17 @@ function askGemini(apiKey, prompt, grounded, model) {
     Logger.log('askGemini 例外：' + err.message);
     return '';
   }
+}
+
+/**
+ * 深度分析用：先試 pro，若回傳空白（額度限制 / 思考吃光 token / 不支援）
+ * 自動退回 flash，確保早報、週報一定生得出來。
+ */
+function askGeminiDeep(apiKey, prompt, grounded) {
+  const out = askGemini(apiKey, prompt, grounded, GEMINI_MODEL_DEEP);
+  if (out) return out;
+  Logger.log('askGeminiDeep: pro 回傳空白，自動退回 flash');
+  return askGemini(apiKey, prompt, grounded, GEMINI_MODEL);
 }
 
 /**
@@ -965,7 +976,7 @@ ${watchLines}
 
 💪 根據總損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元：賺錢稱讚${owner}眼光準，虧損溫暖鼓勵，一句話`;
 
-    const mainMsg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '今日早報生成失敗，請稍後查看。';
+    const mainMsg = askGeminiDeep(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
 
     // 第二則：來源（取 Gemini grounding 真實 URL 縮短）
     const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
@@ -1154,7 +1165,7 @@ ${lines.join('\n') || '（無持倉）'}
 
 要求：數據要真實（搜尋後再寫，不要編造），語氣溫暖專業，適當用 emoji。`;
 
-    const msg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '本週辛苦了，週末愉快！';
+    const msg = askGeminiDeep(cfg.gemini_key, prompt, true) || '本週辛苦了，週末愉快！';
     sendLine(cfg.line_token, '📊 投資阿喵共・週五週報\n' + msg, cfg.line_user_id);
 
     // 第二則：來源（取 Gemini grounding 真實 URL）
