@@ -10,7 +10,10 @@
  */
 
 // ========== 設定區 ==========
-const GEMINI_MODEL = 'gemini-2.5-pro';
+// 預設用便宜又快的 flash：解析指令、查詢損益/持倉/追蹤、到價通知都用這個
+const GEMINI_MODEL = 'gemini-2.5-flash';
+// 深度分析才用 pro（較慢較貴）：每日早報、週五週報
+const GEMINI_MODEL_DEEP = 'gemini-2.5-pro';
 
 // Dashboard 跟 Web App 之間的通關密語。可以在 Sheet「設定」分頁加一列
 // api_key | <你自己的字串> 來覆寫；沒填就用下面的預設。
@@ -727,16 +730,17 @@ let LAST_GROUNDING = null;
  * grounded=true 會開啟 Google Search grounding，AI 會去搜當天真實資料再回答。
  * 搜尋結果（queries + sources）會存到 LAST_GROUNDING。
  */
-function askGemini(apiKey, prompt, grounded) {
+function askGemini(apiKey, prompt, grounded, model) {
   LAST_GROUNDING = null;
   if (!apiKey) {
     Logger.log('askGemini 未設定 API Key');
     return '';
   }
   try {
+    const useModel = model || GEMINI_MODEL;
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/'
-      + GEMINI_MODEL + ':generateContent?key=' + encodeURIComponent(apiKey);
-    const isPro = GEMINI_MODEL.indexOf('pro') !== -1;
+      + useModel + ':generateContent?key=' + encodeURIComponent(apiKey);
+    const isPro = useModel.indexOf('pro') !== -1;
     const generationConfig = {
       // pro 思考會吃掉輸出額度，grounded 報告給多一點空間
       maxOutputTokens: grounded ? (isPro ? 8000 : 4000) : 800,
@@ -956,7 +960,7 @@ ${watchLines}
 
 💪 根據總損益${totalPnl>=0?'+':''}${Math.round(totalPnl)}元：賺錢稱讚${owner}眼光準，虧損溫暖鼓勵，一句話`;
 
-    const mainMsg = askGemini(cfg.gemini_key, prompt, true) || '今日早報生成失敗，請稍後查看。';
+    const mainMsg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '今日早報生成失敗，請稍後查看。';
 
     // 第二則：來源（取 Gemini grounding 真實 URL 縮短）
     const now = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyy-MM-dd HH:mm');
@@ -1145,7 +1149,7 @@ ${lines.join('\n') || '（無持倉）'}
 
 要求：數據要真實（搜尋後再寫，不要編造），語氣溫暖專業，適當用 emoji。`;
 
-    const msg = askGemini(cfg.gemini_key, prompt, true) || '本週辛苦了，週末愉快！';
+    const msg = askGemini(cfg.gemini_key, prompt, true, GEMINI_MODEL_DEEP) || '本週辛苦了，週末愉快！';
     sendLine(cfg.line_token, '📊 投資阿喵共・週五週報\n' + msg, cfg.line_user_id);
 
     // 第二則：來源（取 Gemini grounding 真實 URL）
