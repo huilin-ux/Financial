@@ -203,14 +203,27 @@ owner_name	你的名字
 ### 4-5 部署成 Web App（給 Dashboard 用）
 
 1. 編輯器右上 **「部署」→ 新增部署**
-2. 左側齒輪 ⚙ → 選 **「網頁應用程式」**
+2. 左側齒輪 ⚙ → 選 **「網頁應用程式」** ⚠️ **不要選「程式庫」！**
 3. 填：
-   - 說明：`API`
+   - 說明：`LINE Bot API`
    - 執行身分：**我**
    - 誰可以存取：**任何人**
 4. 按 **「部署」** → 再次授權
-5. 完成後會給你一個網址 `https://script.google.com/macros/s/.../exec`
-6. **完整複製這個 URL**
+5. 完成後會給你一個網址 **必須是這個格式**：
+   ```
+   https://script.google.com/macros/s/AKfy.../exec
+   ```
+   - 中間是 `/macros/s/`（不是 `/macros/library/`）
+   - 結尾是 `/exec`
+6. **完整複製這個 URL**，這就是你之後要貼到 LINE webhook 和 Dashboard 的網址
+
+> ⚠️ **未來要改 Code.gs 時的部署規則（很重要！）**
+>
+> 改完 code 重新部署時，**永遠用「管理部署 → 編輯（鉛筆 ✏️）→ 新版本 → 部署」**，
+> **不要再點「新增部署」**！
+>
+> - ✅ 管理部署 → 編輯 → 新版本：URL 不變，LINE webhook 跟 Dashboard 都還能用
+> - ❌ 新增部署：會給你一個**全新 URL**，舊 URL 失效，LINE Bot 馬上不回應你（推播還會動，但你傳訊息 Bot 不理你）
 
 ---
 
@@ -220,7 +233,7 @@ owner_name	你的名字
 2. 進你的 channel → **Messaging API** 分頁
 3. 找 **Webhook settings** → **Webhook URL**：
    - 點 **Edit** → **貼上你的 Web App URL**（Step 4-5）→ Update
-   - 按 **Verify**（會跳 302 錯誤是正常的，可忽略）
+   - 按 **Verify**（**會跳 302 redirect / timeout 錯誤是正常的，不要理它**，Apps Script 設計就是這樣，真正的 webhook 會 work）
    - **Use webhook** 開關 → 打開 ✅
 
 完成！現在你可以在 LINE 傳訊息給 Bot 互動：
@@ -406,7 +419,24 @@ LINE Messaging API 免費版每月 200 則訊息。
 2. Sheet「設定」分頁的 `line_token` / `line_user_id` 有沒有空格？
 3. Apps Script 跑 `testAll` 看執行記錄哪一步失敗
 
-### Q10：資料安全嗎？
+### Q10：早報推播會到，但我傳訊息 Bot 不回應？
+
+這是**最常見**的問題，幾乎一定是 **LINE webhook URL 失效**。
+
+**為什麼會這樣**：推播（Apps Script → LINE）跟回應（LINE → Apps Script）是兩條獨立的路。推播只要 `line_token` 有效就會動；回應要 LINE webhook URL 指到正確的 Apps Script 才行。
+
+最常見原因：你之前不小心點了「**新增部署**」（而不是「**管理部署→編輯**」），導致 Apps Script URL 換了一個，但 LINE webhook 還指著舊的。
+
+**修法**：
+1. Apps Script → 部署 → **管理部署** → 看「網頁應用程式」那條的 URL
+   - 沒有那條 → 重做 Step 4-5（新增部署 → 網頁應用程式）
+2. 完整複製 URL（必須是 `/macros/s/.../exec` 格式，不能是 `/macros/library/...`）
+3. LINE Developer Console → Messaging API → Webhook URL → Edit → 貼上 → Update
+4. **Use webhook 確認是開的**
+5. Dashboard → 設定 tab → Apps Script URL 也換成新的（不然雲端同步會壞）
+6. LINE 傳「說明」測試
+
+### Q11：資料安全嗎？
 
 **資料儲存位置**
 - Google Sheet **只有你看得到**（除非你主動分享）
